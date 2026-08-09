@@ -1,0 +1,11 @@
+# Files that support developing this extension but have no business being
+# copied into every project that installs it. Patterns are gitignore-
+# compatible; `specify extension add` applies this file at install time.
+#
+# Without this file, the installer copies the extension's source directory
+# verbatim, including dev-only files never declared in extension.yml's
+# `provides:` — that previously shipped this repo's own tests/ and
+# .claude/ (including local, machine-specific agent settings) into every
+# consumer project.
+tests/
+.claude/

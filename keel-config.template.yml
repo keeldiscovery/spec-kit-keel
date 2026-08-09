@@ -1,0 +1,26 @@
+# keel-config.yml — copy of this template, scaffolded at
+# .specify/extensions/keel/keel-config.yml on install.
+#
+# To override for your own project without touching the tracked template,
+# create keel-config.local.yml next to it — keel-gate.sh prefers the local
+# file when both exist, and any change here is recorded so keel.audit can
+# surface it later.
+
+# Minimum interview-derived evidence files required project-wide before
+# /speckit.keel.brief will run. Separately (not controlled by this number),
+# the gate also blocks any high-risk assumption marked "supported" or
+# "validated" in keel/assumptions.md whose own Evidence column is empty —
+# a row can't claim supported/validated with zero evidence cited, but how
+# much evidence is "enough" for that judgment call above zero is left to
+# whoever writes the row, per commands/add-evidence.md.
+min_evidence_per_high_risk_assumption: 3
+
+# Minimum number of distinct participant_role values across all evidence
+# before /speckit.keel.brief will run. One person's opinion is not a segment.
+min_distinct_sources: 2
+
+# When true, /speckit.keel.brief is blocked while any high-risk assumption
+# in keel/assumptions.md is neither "validated" nor "supported" (and has no
+# matching "override: A-XXX" line in keel/decisions.md). Set to false to
+# disable this gate project-wide instead of resolving each assumption.
+block_on_unvalidated_high_risk: true

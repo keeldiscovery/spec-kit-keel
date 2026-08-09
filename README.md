@@ -14,9 +14,21 @@ keel.init → keel.add-evidence → keel.check → keel.brief
 
 ## Install
 
+`keeldiscovery/spec-kit-keel` isn't in Spec Kit's bundled extension catalog
+yet, so the bare `specify extension add keel` won't resolve it — install
+straight from this repo instead:
+
 ```bash
-specify extension add keel
-# or, from a local clone:
+specify extension add keel --from https://github.com/keeldiscovery/spec-kit-keel/archive/refs/heads/main.zip
+```
+
+Spec Kit will ask you to confirm installing from an external, non-catalog
+source (`y` at the prompt) — that's expected for any `--from` install, not
+specific to Keel.
+
+Developing locally instead?
+
+```bash
 specify extension add --dev /path/to/spec-kit-keel
 ```
 

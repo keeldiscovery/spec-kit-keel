@@ -91,6 +91,50 @@ almost did, during real development — this isn't a generic template.
 
 ---
 
+## Part 1b — Publishing a new version (after merging to `main`, not before)
+
+This is a different moment than everything above — Part 1's items gate the
+merge itself; these gate what happens once `main` actually changes and a
+release is meant to go out. Skipping any of these was how the catalog
+listing went stale after the 0.2.0 release: the version was bumped, tagged,
+and released correctly, but nothing updated the entry that actually points
+users at it.
+
+- [ ] `extension.yml`'s `version:` and `CHANGELOG.md`'s newest heading agree,
+      and the changelog entry is dated the day of the actual merge, not
+      written speculatively beforehand
+- [ ] `./tests/test-install.sh` re-run **on the merged `main`**, not just on
+      the feature branch pre-merge — a fast-forward merge makes this
+      redundant in practice, but it's what actually catches a merge that
+      wasn't the clean fast-forward it was assumed to be
+- [ ] `git tag vX.Y.Z` at the new `main` HEAD, pushed, and a GitHub Release
+      created from it with notes pulled from `CHANGELOG.md`'s matching
+      section (not written fresh — the changelog is the source of truth)
+- [ ] Real install smoke test against the **actual tagged release archive
+      URL** (`.../archive/refs/tags/vX.Y.Z.zip`), not the branch or `main`
+      zip — confirms the artifact users will actually download, not just
+      the source tree it was cut from
+- [ ] **File (or update) the extension catalog submission on
+      `github/spec-kit`.** The community catalog
+      (`extensions/catalog.community.json` upstream) is a static snapshot —
+      it does not track this repo automatically. A version bump here does
+      nothing to the catalog on its own; the listed `version`,
+      `download_url`, and `provides.commands`/`provides.hooks` will silently
+      go stale on every release until a new **Extension Submission** issue
+      is filed on `github/spec-kit` with the updated fields, explicitly
+      stating it's an update to the existing `keel` entry (not a fresh
+      submission — see the [publishing guide](https://github.com/github/spec-kit/blob/main/extensions/EXTENSION-PUBLISHING-GUIDE.md#updating-an-existing-extension)).
+      This needs doing **every version**, not just once.
+- [ ] If `keeldiscovery.github.io` also has a pending merge for this release
+      (site copy describing new behavior, updated command list, etc.):
+      **merge and release `spec-kit-keel` first.** The site can describe a
+      command before the extension that provides it is actually live on
+      `spec-kit-keel`'s `main` — if the site ships first, the documented
+      install command hands out a version that doesn't have the feature the
+      page just described.
+
+---
+
 ## Part 2 — `keeldiscovery.github.io` (the website)
 
 There is **no automated test suite** for this site — it's one hand-authored

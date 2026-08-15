@@ -55,7 +55,12 @@ almost did, during real development — this isn't a generic template.
       decision menu — nothing catches this automatically, it has to be
       read side by side.
 - [ ] `extension.yml`'s `provides.commands[].description` matches each
-      command's own frontmatter description (two places, no automated sync)
+      command's own frontmatter description (two places, no automated sync).
+      "Matches" means describes the same behavior, not byte-identical text —
+      `extension.yml`'s copies are meant to be short summaries, so trailing
+      punctuation or minor rewording is fine. Diff them for meaning, not
+      with a strict string-equality check, or every command will falsely
+      flag as drifted.
 - [ ] Any prose cross-reference to another command file (e.g. "do the work
       of `commands/init.md`'s Outline") still points at a step that actually
       exists there — these are plain prose links, nothing validates them
@@ -110,9 +115,15 @@ static HTML file. Every item below is a manual/visual check; this checklist
       un-stamped "system" state renders wrong
 - [ ] `body` has an explicit background — never transparent, or it silently
       borrows the host page's theme
-- [ ] The hero's deliberately-fixed-dark styling (`.hero`,
-      `.hero-diagram-band`) is intentional, not a token-system gap — don't
-      "fix" it into following the theme by accident
+- [ ] The hand-authored hero diagram SVG uses `style="fill:var(--x)"` /
+      `style="stroke:var(--x)"` for every color, never a hardcoded hex. This
+      already broke once: after the site's visual redesign made the hero
+      follow the normal light/dark tokens (it's no longer fixed-dark — that
+      was an earlier, now-superseded design), the diagram's own colors were
+      still hardcoded hex tuned for one background. Its container correctly
+      re-themed; the SVG's text didn't, and "Spec Kit builds it" went
+      unreadable in dark mode. Plain `fill="#hex"` / `stroke="#hex"`
+      attributes do **not** parse `var()` — only `style="fill:var(--x)"` does.
 
 ### Interactivity
 

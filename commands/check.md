@@ -1,6 +1,6 @@
 ---
 name: "speckit.keel.check"
-description: "Report coverage, saturation, contradictions, and one recommended next action."
+description: "Report coverage, saturation, and contradictions, then a five-option decision menu: pivot, gather evidence, reduce risk, narrow, or proceed."
 argument-hint: "(no input needed — reads keel/hypothesis.md, keel/assumptions.md, keel/evidence/)"
 compatibility: "Requires keel/hypothesis.md and keel/assumptions.md (run speckit.keel.init first)"
 metadata:
@@ -82,7 +82,16 @@ Read `keel/assumptions.md` and every file in `keel/evidence/`, then report:
    - **Option 4 — Narrow the hypothesis.** Suggest a concrete alternative:
      a narrower customer segment, a more specific problem, a smaller use
      case, or a reduced solution scope — and write it out as a revised,
-     testable hypothesis statement, not just an instruction to narrow.
+     testable hypothesis statement, not just an instruction to narrow. If
+     the narrowed version introduces a new mechanism or claim that no
+     existing assumption already covers (e.g. narrowing "reads standup
+     threads" to "reads standup threads plus a dedicated #blockers
+     channel" introduces a new, untested claim that such a channel exists
+     and would be used), derive a **new assumption** for it too, at
+     whatever risk level it honestly deserves. A narrow that quietly ships
+     an unvalidated new design choice just because it replaced a
+     contradicted one defeats the evidence gate — it isn't "resolved,"
+     it's a fresh, uncovered assumption wearing the old one's exemption.
 
    - **Option 5 — Proceed to the brief.** Recommend this when evidence is
      genuinely strong enough, and say plainly why (which assumptions

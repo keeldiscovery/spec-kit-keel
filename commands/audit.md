@@ -102,6 +102,28 @@ the gate itself didn't block. For each overridden assumption:
   whoever reads the audit knows this risk was never resolved, only
   deferred.
 
+### Superseded assumptions
+
+Read `keel/decisions.md` for every line containing `superseded: A-XXX` as
+well — this is a distinct case from an override, and the audit should not
+conflate them. A superseded assumption was contradicted by evidence and
+replaced by a new one (see `commands/add-evidence.md`); unlike an override,
+this **is** a resolution, just not in the direction the hypothesis
+originally assumed. For each superseded assumption:
+
+- State plainly that it was contradicted and replaced, name the assumption
+  that replaced it, and cite the evidence that did the contradicting — this
+  is a legitimate discovery finding worth surfacing positively, not a risk
+  still hanging over the build.
+- Check that the *replacement* assumption's own resolution (validated,
+  supported, or itself still open) is accurately reflected wherever the
+  audit discusses it — don't let "superseded" quietly imply the new belief
+  was confirmed if it wasn't.
+- If the shipped code still reflects the original (superseded) assumption
+  rather than its replacement, that's a high-severity finding: the code was
+  built on a belief the evidence had already disproven by the time
+  `/speckit.keel.brief` ran.
+
 ### Output
 
 Write `keel/audit-report.md`:

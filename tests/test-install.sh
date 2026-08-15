@@ -193,6 +193,37 @@ printf '%s\n' "$OUT" | grep -q '2 high-risk (0 unvalidated-and-blocking)' && \
 printf '%s\n' "$OUT" | grep -q 'override recorded in keel/decisions.md for: A-002' && \
   ok "guide surfaces the recorded override by ID" || no "guide should surface which assumption has a recorded override"
 
+head_ "supersession (contradicted high-risk assumption replaced by a new one)"
+rm -f "$TMP/keel/decisions.md"
+cat > "$TMP/keel/assumptions.md" <<'EOF'
+| ID | Statement | Type | Risk | Evidence | Status |
+|----|-----------|------|------|----------|--------|
+| A-001 | Managers reconcile weekly | belief | high | E-001, E-002, E-003 | validated |
+| A-003 | Standup threads alone contain enough signal | belief | high | E-001, E-004 | contradicted |
+| A-006 | A useful digest needs input beyond standup threads | belief | high | E-004, E-005 | supported |
+EOF
+OUT="$( cd "$TMP" && bash .specify/extensions/keel/scripts/bash/keel-gate.sh brief 2>&1 )"
+RC=$?
+[ $RC -ne 0 ] && ok "brief still blocks on a contradicted-but-unresolved high-risk assumption" \
+  || no "brief should still block until the contradicted assumption is explicitly resolved (override or superseded)"
+printf '%s\n' "$OUT" | grep -q "superseded: A-XXX" && \
+  ok "brief's block hint mentions the superseded mechanism, not just override" || \
+  no "brief's block hint should mention 'superseded: A-XXX' as a distinct option from override"
+
+printf 'superseded: A-003 - contradicted by E-004/E-005, replaced by A-006\n' > "$TMP/keel/decisions.md"
+OUT="$( cd "$TMP" && bash .specify/extensions/keel/scripts/bash/keel-gate.sh brief 2>&1 )"
+RC=$?
+[ $RC -eq 0 ] && ok "brief passes once the contradicted assumption is recorded as superseded" \
+  || no "recording 'superseded: A-003' should unblock brief (regression: see keel-gate.sh superseded_ids/unvalidated_high_risk)"
+printf '%s\n' "$OUT" | grep -q 'superseded (contradicted and replaced) recorded in keel/decisions.md for: A-003' && \
+  ok "brief surfaces the superseded assumption by ID, distinct from an override" || \
+  no "brief should explicitly note which assumption(s) were superseded, separately from overrides"
+
+OUT="$( cd "$TMP" && bash .specify/extensions/keel/scripts/bash/keel-gate.sh guide 2>&1 )"
+printf '%s\n' "$OUT" | grep -q 'superseded (contradicted and replaced) recorded in keel/decisions.md for: A-003' && \
+  ok "guide phase also surfaces the superseded assumption" || \
+  no "guide phase should surface superseded assumptions the same way brief does"
+
 rm -rf "$TMP"
 
 if [ "$FULL" -eq 1 ]; then

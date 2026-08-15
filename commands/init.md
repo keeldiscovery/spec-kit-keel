@@ -1,6 +1,6 @@
 ---
 name: "speckit.keel.init"
-description: "Capture the hypothesis, derive assumptions, and write a non-leading interview guide before any spec exists."
+description: "Capture the hypothesis, derive assumptions, and write a non-leading interview guide and evidence-gathering plan before any spec exists."
 argument-hint: "Describe the product idea or hypothesis in your own words"
 compatibility: "Requires a Spec Kit project with the Keel extension installed"
 metadata:

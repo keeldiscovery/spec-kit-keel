@@ -111,14 +111,30 @@ overridden_ids() {
     | sed -E 's/override:[[:space:]]*//'
 }
 
-# Count of unvalidated-or-evidence-thin high-risk assumptions, minus any with a recorded override.
+# IDs with a "superseded: A-XXX" line in keel/decisions.md - distinct from
+# override. Override means "accepting this risk, unresolved." Superseded
+# means the opposite: the assumption was contradicted by evidence and
+# *replaced* by a new one (per commands/add-evidence.md's guidance to add a
+# new assumption rather than stretch the old one's wording). A contradicted
+# high-risk row has no other way to stop blocking the gate - it can't be
+# "validated" (it's false) and downgrading its risk misstates what
+# happened - so this is its own recognized resolution, not a variant of
+# override. Same right-anchored regex approach as overridden_ids().
+superseded_ids() {
+  [ -f "$KEEL/decisions.md" ] || return 0
+  grep -oE 'superseded:[[:space:]]*A-[0-9]+' "$KEEL/decisions.md" 2>/dev/null \
+    | sed -E 's/superseded:[[:space:]]*//'
+}
+
+# Count of unvalidated-or-evidence-thin high-risk assumptions, minus any
+# with a recorded override or a recorded supersession.
 unvalidated_high_risk() {
   all_ids="$( { unvalidated_high_risk_ids; unbacked_high_risk_ids; } | sed '/^$/d' | sort -u)"
   [ -z "$all_ids" ] && { echo 0; return; }
-  ov_ids=" $(overridden_ids | tr '\n' ' ') "
+  resolved_ids=" $(overridden_ids | tr '\n' ' ')$(superseded_ids | tr '\n' ' ') "
   n=0
   for id in $all_ids; do
-    case "$ov_ids" in
+    case "$resolved_ids" in
       *" $id "*) ;;
       *) n=$((n + 1)) ;;
     esac
@@ -185,16 +201,18 @@ case "$PHASE" in
     [ -f "$KEEL/assumptions.md" ] || { block "No assumptions recorded."; hint "Run /speckit.keel.init."; }
     ev="$(count_evidence)"; src="$(distinct_sources)"; con="$(open_contradictions)"
     ov_list="$(overridden_ids | tr '\n' ' ')"
+    sup_list="$(superseded_ids | tr '\n' ' ')"
     unbacked_list="$(unbacked_high_risk_ids | tr '\n' ' ')"
     uhr="$(unvalidated_high_risk)"
     say "evidence files: $ev   distinct participant roles: $src   unvalidated high-risk: $uhr   contradictions: $con"
     [ -n "$ov_list" ] && say "NOTE: override recorded in keel/decisions.md for: $ov_list (excluded from the count above, still surfaced by keel.audit)."
+    [ -n "$sup_list" ] && say "NOTE: superseded (contradicted and replaced) recorded in keel/decisions.md for: $sup_list (excluded from the count above, still surfaced by keel.audit)."
     [ -n "$unbacked_list" ] && say "NOTE: marked supported/validated with an empty Evidence column: $unbacked_list (counted as unvalidated above)."
     [ "$ev" -lt "$MIN_EV" ] && { block "only $ev evidence files, minimum is $MIN_EV."; hint "Run /speckit.keel.add-evidence after more interviews."; }
     [ "$src" -lt "$MIN_SRC" ] && { block "only $src distinct participant roles, minimum is $MIN_SRC."; hint "One person's opinion is not a segment."; }
     if [ "$BLOCK" = "true" ] && [ "$uhr" -gt 0 ]; then
       block "$uhr high-risk assumption(s) still unvalidated."
-      hint "Validate them, downgrade the risk with a reason, or add a line containing 'override: A-XXX' to keel/decisions.md."
+      hint "Validate them, downgrade the risk with a reason, add 'override: A-XXX' to keel/decisions.md to accept the risk as-is, or - if the evidence actually disproved it and you replaced it with a new assumption - add 'superseded: A-XXX' there instead."
       hint "To disable this gate project-wide: set block_on_unvalidated_high_risk: false in keel-config.local.yml (recorded in the audit)."
     fi
     [ "$con" -gt 0 ] && say "WARNING: $con open contradiction(s). These must appear in the brief's unvalidated risks."
@@ -211,6 +229,7 @@ case "$PHASE" in
     ac="$(assumption_count)"; hrc="$(high_risk_count)"; uhr="$(unvalidated_high_risk)"
     ev="$(count_evidence)"; src="$(distinct_sources)"; con="$(open_contradictions)"
     ov_list="$(overridden_ids | tr '\n' ' ')"
+    sup_list="$(superseded_ids | tr '\n' ' ')"
 
     say "hypothesis: $hyp"
     say "evidence plan: $ep"
@@ -219,6 +238,7 @@ case "$PHASE" in
     say "contradictions: $con open"
     say "brief: $br"
     [ -n "$ov_list" ] && say "NOTE: override recorded in keel/decisions.md for: $ov_list."
+    [ -n "$sup_list" ] && say "NOTE: superseded (contradicted and replaced) recorded in keel/decisions.md for: $sup_list."
 
     if [ "$ev" -ge "$MIN_EV" ] && [ "$src" -ge "$MIN_SRC" ] && { [ "$BLOCK" != "true" ] || [ "$uhr" -eq 0 ]; }; then
       say "brief gate: would currently PASS"

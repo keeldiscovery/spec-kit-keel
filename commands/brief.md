@@ -17,13 +17,18 @@ bash .specify/extensions/keel/scripts/bash/keel-gate.sh brief
 ```
 
 **This gate can actually block.** If it exits non-zero, stop and relay its
-output verbatim to the user along with the concrete next action it names
-(more evidence, a risk downgrade with a documented reason in
-`keel/decisions.md`, or — as a last resort, and only if the user explicitly
-chooses it — disabling the gate project-wide in `keel-config.local.yml`).
-Do not attempt to write `keel/brief.md` anyway, and do not talk the user
-into a downgrade or override just to get past the gate — the point of
-discovery is that some ideas should change shape or stop here.
+output verbatim to the user along with the concrete next action it names:
+more evidence; a risk downgrade with a documented reason in
+`keel/decisions.md`; `superseded: A-00X` in `keel/decisions.md` if the
+blocking assumption was actually contradicted and replaced by a new one
+(see `commands/add-evidence.md`) — this is the normal, expected path for a
+contradicted high-risk assumption, not a workaround; an `override: A-00X`
+entry if the risk is being knowingly accepted unresolved; or, as a last
+resort and only if the user explicitly chooses it, disabling the gate
+project-wide in `keel-config.local.yml`. Do not attempt to write
+`keel/brief.md` anyway, and do not talk the user into a downgrade,
+override, or false "supersession" just to get past the gate — the point
+of discovery is that some ideas should change shape or stop here.
 
 ## Presentation convention
 

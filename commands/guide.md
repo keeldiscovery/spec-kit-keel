@@ -95,7 +95,15 @@ time it comes up.
        and why, so the reasoning survives even though the old wording
        doesn't. Prefer adding a new assumption over silently rewriting an
        old one that already has evidence attached to it, per
-       `commands/add-evidence.md`'s guidance on this.
+       `commands/add-evidence.md`'s guidance on this. If the assumption
+       being replaced was high-risk, that same `keel/decisions.md` entry
+       must include `superseded: A-00X` (the old ID) — otherwise it blocks
+       `/speckit.keel.brief` indefinitely with no way to resolve it, since
+       a contradicted assumption can never become validated. If the narrow
+       itself introduces a new mechanism or claim (per
+       `commands/check.md`'s Option 4), derive a new assumption for that
+       too — don't let it ride through unvalidated just because it
+       replaced something that was.
      - *Reduce/downgrade risk* → help the user record the downgrade and
        its justification in `keel/decisions.md`, and update the
        assumption's `Risk` field accordingly.

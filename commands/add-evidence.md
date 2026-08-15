@@ -101,7 +101,17 @@ appear afterward, in parentheses, as secondary metadata.
    - If evidence contradicts an assumption in a way that implies a design
      change (not just "this is false" but "here's what's true instead"),
      consider adding a **new** assumption capturing the revised belief
-     rather than stretching the old one's wording to fit.
+     rather than stretching the old one's wording to fit. If the
+     contradicted assumption was high-risk, it will otherwise block
+     `/speckit.keel.brief` forever — it can never become `validated` (it's
+     false) and downgrading its risk would misstate what happened. Once
+     the new assumption is written, add a line containing
+     `superseded: A-00X` (the *old* ID) to `keel/decisions.md`, noting
+     which new assumption replaced it and why. This is deliberately not
+     the same mechanism as `override: A-00X` — override means "accepting
+     this risk, unresolved"; superseded means the opposite, that the
+     assumption was actually resolved, just not in the direction it
+     started in.
 
 5. **Summarize your interpretation in plain language** — who this was with,
    what it was recorded as supporting or contradicting, and at what

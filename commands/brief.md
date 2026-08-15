@@ -25,6 +25,14 @@ Do not attempt to write `keel/brief.md` anyway, and do not talk the user
 into a downgrade or override just to get past the gate — the point of
 discovery is that some ideas should change shape or stop here.
 
+## Presentation convention
+
+Never lead with a bare ID. Refer to an assumption by its Statement text and
+to evidence by its source. IDs may still appear afterward, in parentheses,
+as secondary metadata — and stay consistent with however
+`keel/evidence-plan.md` and prior `/speckit.keel.check` output already
+described the same assumption/evidence, rather than rephrasing it here.
+
 ## Outline (only once the gate passes)
 
 1. **Write `keel/brief.md`** with these sections:
@@ -43,7 +51,11 @@ discovery is that some ideas should change shape or stop here.
      test rather than real usage, a risk downgrade rather than a
      validation), say so here. Clearing the gate is not the same as being
      risk-free, and this is the one place that distinction is recorded for
-     whoever plans the build.
+     whoever plans the build. If `keel/decisions.md` has entries — a
+     pivot, a narrowed hypothesis, a downgraded risk, an override — this
+     section is where their consequences belong, not just the fact that
+     they happened; the brief should reflect the *current* hypothesis and
+     risk picture, not a stale first draft of it.
    - **Traceability** — instruct that every functional requirement in the
      resulting spec should carry a `keel: A-00X` marker back to the
      assumption/evidence it's grounded in. Note explicitly that

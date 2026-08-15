@@ -5,12 +5,21 @@ A Spec Kit extension that puts customer evidence upstream of `/speckit.specify`,
 Spec Kit turns a specification into working software. Keel is about whether the specification deserved to exist. It brackets the core workflow rather than inserting into it.
 
 ```
+             /speckit.keel.guide
+     (state-aware — routes through all four below)
 keel.init → keel.add-evidence → keel.check → keel.brief
                                                   ↓
    /speckit.constitution → specify → clarify → plan → checklist → tasks → analyze → implement → converge
                                                                                                     ↓
                                                                                               keel.audit
 ```
+
+The fastest way to run Keel is to just run `/speckit.keel.guide` with no
+arguments and follow what it says — it detects which phase you're in from
+your project's `keel/` files and does that phase's work inline, so you
+don't need to know the four commands below it exist, or track `A-00X` /
+`E-00X` IDs yourself. Those four (plus `keel.audit`) remain fully usable
+directly — `guide` is a router around them, not a replacement.
 
 ## Install
 
@@ -38,11 +47,14 @@ Requires Spec Kit >= 0.15.0 and Python 3.11+.
 
 | Command | What it does |
 |---|---|
-| `/speckit.keel.init` | Captures the hypothesis, derives assumptions, writes a non-leading interview guide |
-| `/speckit.keel.add-evidence` | Ingests one interview, extracts claims with provenance, updates assumption confidence |
-| `/speckit.keel.check` | Coverage, saturation, contradictions, and one recommended next action |
+| `/speckit.keel.guide` | State-aware entry point — detects your current phase and does that phase's work, no memorized command order or IDs required |
+| `/speckit.keel.init` | Captures the hypothesis, derives assumptions, writes a non-leading interview guide and an evidence-gathering plan |
+| `/speckit.keel.add-evidence` | Ingests one interview, extracts claims with provenance, updates assumption confidence — stays conversational across multiple pieces of evidence |
+| `/speckit.keel.check` | Coverage, saturation, contradictions, and a five-option decision menu (pivot, gather more evidence, reduce risk, narrow the hypothesis, or proceed to the brief) |
 | `/speckit.keel.brief` | Writes constitution input and an evidence-backed brief for `/speckit.specify` |
 | `/speckit.keel.audit` | Scores spec quality; with `keel/` present, diffs the build against the evidence |
+
+Every command refers to assumptions and evidence by their actual statement or source ("the assumption that small-business owners will pay $20/month", "feedback from EM-2, an engineering manager") rather than leading with `A-00X` / `E-00X` — those IDs still exist as secondary metadata (and are what `keel-gate.sh` actually parses), you just shouldn't need to remember them.
 
 ## Why not just use `/speckit.clarify`?
 

@@ -3,7 +3,7 @@ schema_version: "1.0"
 extension:
   id: "keel"
   name: "Keel Discovery"
-  version: "0.1.1"
+  version: "0.2.0"
   description: "Evidence-backed discovery upstream of speckit.specify, plus round-trip drift auditing after implementation."
   author: "Keel Discovery"
   repository: "https://github.com/keeldiscovery/spec-kit-keel"
@@ -15,6 +15,9 @@ requires:
 
 provides:
   commands:
+    - name: "speckit.keel.guide"
+      file: "commands/guide.md"
+      description: "State-aware entry point: detects the current discovery phase and guides you to the next action"
     - name: "speckit.keel.init"
       file: "commands/init.md"
       description: "Capture the hypothesis, derive assumptions, write a non-leading interview guide"

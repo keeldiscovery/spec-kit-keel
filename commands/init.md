@@ -76,7 +76,34 @@ attached.
    - Include at least one question that could produce evidence
      *contradicting* the hypothesis, not just confirming it.
 
-4. **Report back**: hypothesis captured, N assumptions derived (call out
-   how many are high-risk), interview guide ready. Tell the user the next
-   step is `/speckit.keel.add-evidence` once they have a real interview to
-   log — do not fabricate evidence at this stage under any circumstances.
+4. **Write `keel/evidence-plan.md`** — a stakeholder-and-question plan so
+   the user doesn't have to independently figure out whom to talk to. As a
+   table:
+
+   ```markdown
+   | Stakeholder | Why they matter | Evidence needed | Questions to ask | Assumption tested | Priority |
+   |---|---|---|---|---|---|
+   | Target user | ... | ... | ... | A-001 | High |
+   ```
+
+   - Identify stakeholder groups separately when they differ — a target
+     user, an economic buyer, an influencer, a domain expert are often not
+     the same person and often disagree.
+   - Every question must trace to a specific assumption ID (cross-reference
+     `keel/assumptions.md`) and reuse the non-leading-question rules from
+     step 3.
+   - Prioritize rows by what's actually blocking `/speckit.keel.brief` —
+     evidence for high-risk, zero-coverage assumptions first.
+   - This plan is not static: `/speckit.keel.add-evidence` and
+     `/speckit.keel.check` should update it (reprioritize rows, add new
+     ones) when new evidence changes the hypothesis or surfaces a
+     stakeholder gap. Don't let it go stale as a one-time artifact.
+
+5. **Report back**: hypothesis captured, N assumptions derived (call out
+   how many are high-risk), interview guide ready, evidence plan written.
+   Refer to assumptions by their statement, not just their ID (IDs are
+   secondary metadata — see `keel/evidence-plan.md`'s own convention).
+   Tell the user the next step is `/speckit.keel.add-evidence` — or
+   `/speckit.keel.guide`, which will read this plan and suggest who to talk
+   to first — once they have a real interview to log. Do not fabricate
+   evidence at this stage under any circumstances.

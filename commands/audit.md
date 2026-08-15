@@ -20,6 +20,14 @@ This only blocks if there is no `spec.md` at all — audit needs something to
 score. It runs in **spec-quality-only mode** when `keel/brief.md` is
 missing (no evidence to diff the build against) and says so.
 
+## Presentation convention
+
+Never lead with a bare ID in prose findings. Refer to an assumption by its
+Statement text and to evidence by its source; keep `A-00X`/`E-00X` as
+parenthetical secondary metadata, and as the identifier used in the
+`audit-report.md` table (a table column is where IDs belong — running prose
+is where the human-readable form belongs).
+
 ## Outline
 
 ### Always: spec quality

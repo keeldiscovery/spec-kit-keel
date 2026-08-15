@@ -6,7 +6,7 @@
 set -u
 
 PHASE="${1:-}"
-[ -z "$PHASE" ] && { echo "usage: keel-gate.sh <init|add-evidence|check|brief|plan|implement|audit>" >&2; exit 2; }
+[ -z "$PHASE" ] && { echo "usage: keel-gate.sh <init|add-evidence|check|brief|guide|plan|implement|audit>" >&2; exit 2; }
 
 find_root() {
   d="$PWD"
@@ -126,6 +126,34 @@ unvalidated_high_risk() {
   echo "$n"
 }
 
+# Total number of well-formed assumption rows in assumptions.md, regardless
+# of risk or status. Same right-anchored/NF>=8 well-formedness check as the
+# functions above, so a row this rejects is also a row those reject.
+assumption_count() {
+  [ -f "$KEEL/assumptions.md" ] || { echo 0; return; }
+  awk -F'|' '
+    /^\|/ && $0 !~ /^\|[[:space:]]*-+/ && $0 !~ /\| *ID *\|/ { if (NF >= 8) c++ }
+    END { print c+0 }
+  ' "$KEEL/assumptions.md"
+}
+
+# IDs of every high-risk row, independent of Status - used by the guide
+# phase to report "N of M high-risk assumptions cleared" rather than just
+# the unvalidated count.
+high_risk_ids() {
+  [ -f "$KEEL/assumptions.md" ] || return 0
+  awk -F'|' '
+    /^\|/ && $0 !~ /^\|[[:space:]]*-+/ && $0 !~ /\| *ID *\|/ {
+      if (NF < 8) next
+      id=$2; risk=$(NF-3)
+      gsub(/^[ \t]+|[ \t]+$/,"",id); gsub(/^[ \t]+|[ \t]+$/,"",risk)
+      if (risk=="high") print id
+    }
+  ' "$KEEL/assumptions.md"
+}
+
+high_risk_count() { high_risk_ids | sed '/^$/d' | wc -l | tr -d ' '; }
+
 open_contradictions() {
   [ -f "$KEEL/assumptions.md" ] || { echo 0; return; }
   # grep -c always prints a count, even 0, but exits 1 on zero matches —
@@ -170,6 +198,37 @@ case "$PHASE" in
       hint "To disable this gate project-wide: set block_on_unvalidated_high_risk: false in keel-config.local.yml (recorded in the audit)."
     fi
     [ "$con" -gt 0 ] && say "WARNING: $con open contradiction(s). These must appear in the brief's unvalidated risks."
+    ;;
+
+  guide)
+    # Never blocks - guide is a read-only status/routing phase for
+    # /speckit.keel.guide. It reports the same underlying numbers `brief`
+    # would gate on, so the command can route the user without
+    # re-implementing this arithmetic in prose.
+    hyp="missing"; [ -f "$KEEL/hypothesis.md" ] && hyp="present"
+    ep="missing"; [ -f "$KEEL/evidence-plan.md" ] && ep="present"
+    br="missing"; [ -f "$KEEL/brief.md" ] && br="present"
+    ac="$(assumption_count)"; hrc="$(high_risk_count)"; uhr="$(unvalidated_high_risk)"
+    ev="$(count_evidence)"; src="$(distinct_sources)"; con="$(open_contradictions)"
+    ov_list="$(overridden_ids | tr '\n' ' ')"
+
+    say "hypothesis: $hyp"
+    say "evidence plan: $ep"
+    say "assumptions: $ac total, $hrc high-risk ($uhr unvalidated-and-blocking)"
+    say "evidence: $ev files across $src distinct participant roles"
+    say "contradictions: $con open"
+    say "brief: $br"
+    [ -n "$ov_list" ] && say "NOTE: override recorded in keel/decisions.md for: $ov_list."
+
+    if [ "$ev" -ge "$MIN_EV" ] && [ "$src" -ge "$MIN_SRC" ] && { [ "$BLOCK" != "true" ] || [ "$uhr" -eq 0 ]; }; then
+      say "brief gate: would currently PASS"
+    else
+      reasons=""
+      [ "$ev" -lt "$MIN_EV" ] && reasons="$reasons only $ev evidence files (need $MIN_EV);"
+      [ "$src" -lt "$MIN_SRC" ] && reasons="$reasons only $src distinct roles (need $MIN_SRC);"
+      [ "$BLOCK" = "true" ] && [ "$uhr" -gt 0 ] && reasons="$reasons $uhr unvalidated high-risk assumption(s);"
+      say "brief gate: would currently BLOCK -$reasons"
+    fi
     ;;
 
   plan)

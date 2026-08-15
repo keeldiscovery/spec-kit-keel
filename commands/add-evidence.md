@@ -30,6 +30,13 @@ bash .specify/extensions/keel/scripts/bash/keel-gate.sh add-evidence
 If this blocks, `keel/hypothesis.md` or `keel/assumptions.md` is missing.
 Stop and tell the user to run `/speckit.keel.init` first.
 
+## Presentation convention
+
+Never lead with a bare ID when talking to the user. Refer to an assumption
+by its Statement text and to evidence by its source (participant name/role,
+or whatever `keel/evidence-plan.md` called that stakeholder). IDs may still
+appear afterward, in parentheses, as secondary metadata.
+
 ## Outline
 
 1. **Determine the next evidence ID.** List `keel/evidence/E-*.md`, take the
@@ -96,7 +103,38 @@ Stop and tell the user to run `/speckit.keel.init` first.
      consider adding a **new** assumption capturing the revised belief
      rather than stretching the old one's wording to fit.
 
-5. **Run `/speckit.keel.check` logic inline** (or tell the user to run it)
-   and report the resulting coverage, saturation, and contradiction counts
-   so they know whether another interview is needed before
-   `/speckit.keel.brief` will pass.
+5. **Summarize your interpretation in plain language** — who this was with,
+   what it was recorded as supporting or contradicting, and at what
+   confidence — and explicitly invite a correction if any of that reading
+   feels uncertain (e.g. an ambiguous claim you had to force one way).
+   Don't move on while the user is still correcting your read of the last
+   piece of evidence.
+
+6. **If new evidence changes the picture** — reveals a stakeholder gap,
+   shifts which assumption is highest-priority, or makes a planned question
+   moot — update `keel/evidence-plan.md` to match rather than leaving it
+   stale.
+
+7. **Offer next actions, and keep going in this same conversation** rather
+   than requiring the slash command to be re-invoked per item:
+   - **Add another piece of evidence** — if the user pastes more material,
+     repeat steps 1–6 on it immediately.
+   - **Review evidence collected so far** — list each item with its
+     human-readable summary (source, what it supports/contradicts).
+   - **Edit or remove an evidence item** — to remove, delete the `E-00N.md`
+     file, strip its ID from every assumption row's `Evidence` column it
+     touched, and re-evaluate those rows' `Status`: if no other evidence
+     remains for a row, it goes back to `open`. If removing evidence
+     invalidates a documented override or downgrade in `keel/decisions.md`,
+     say so explicitly rather than leaving a stale justification in place.
+     To edit, rewrite the claims/quote in place and redo step 4's status
+     logic for every assumption affected — an edit can change a claim's
+     direction (supports → contradicts) just as a new piece of evidence
+     could.
+   - **Run a check now** — do the work of `commands/check.md`'s Outline
+     inline.
+
+   If coverage is still clearly too thin for a meaningful check (e.g. one
+   evidence file, one participant role), say so plainly and suggest
+   gathering more before running one, rather than running a check that can
+   only say "not enough evidence yet."

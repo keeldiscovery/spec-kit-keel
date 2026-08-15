@@ -133,6 +133,66 @@ EOF
 [ $? -ne 0 ] && ok "brief blocks a high-risk row marked supported/validated with an empty Evidence column" \
   || no "a supported/validated row with zero cited evidence should still block (regression: see keel-gate.sh unbacked_high_risk_ids)"
 
+head_ "guide phase (speckit.keel.guide)"
+rm -rf "$TMP/keel"
+mkdir -p "$TMP/keel/evidence"
+
+# scenario: totally empty state - guide must still exit 0 and say so plainly
+rm -f "$TMP/keel/hypothesis.md" "$TMP/keel/assumptions.md" "$TMP/keel/evidence-plan.md" "$TMP/keel/brief.md" "$TMP/keel/decisions.md"
+rm -f "$TMP"/keel/evidence/E-*.md
+OUT="$( cd "$TMP" && bash .specify/extensions/keel/scripts/bash/keel-gate.sh guide 2>&1 )"
+RC=$?
+[ $RC -eq 0 ] && ok "guide never blocks on empty state (exit 0)" || no "guide should never block, even with nothing set up yet"
+printf '%s\n' "$OUT" | grep -q 'hypothesis: missing' && ok "guide reports missing hypothesis on empty state" \
+  || no "guide should report 'hypothesis: missing' on empty state"
+
+# scenario: hypothesis + high-risk assumption, no evidence yet
+printf '# Hypothesis\n' > "$TMP/keel/hypothesis.md"
+cat > "$TMP/keel/assumptions.md" <<'EOF'
+| ID | Statement | Type | Risk | Evidence | Status |
+|----|-----------|------|------|----------|--------|
+| A-001 | Managers reconcile weekly | belief | high |  | open |
+EOF
+OUT="$( cd "$TMP" && bash .specify/extensions/keel/scripts/bash/keel-gate.sh guide 2>&1 )"
+RC=$?
+[ $RC -eq 0 ] && ok "guide never blocks with hypothesis but no evidence (exit 0)" \
+  || no "guide should still exit 0 with hypothesis but no evidence"
+printf '%s\n' "$OUT" | grep -q 'brief gate: would currently BLOCK' && ok "guide correctly reports brief gate would BLOCK pre-evidence" \
+  || no "guide should report the brief gate would currently BLOCK before any evidence exists"
+
+# scenario: fully passing state (Evidence column populated - an empty one
+# would still correctly block per unbacked_high_risk_ids, tested elsewhere)
+for i in 1 2 3; do printf -- '- participant_role: role%s\n' "$i" > "$TMP/keel/evidence/E-00$i.md"; done
+cat > "$TMP/keel/assumptions.md" <<'EOF'
+| ID | Statement | Type | Risk | Evidence | Status |
+|----|-----------|------|------|----------|--------|
+| A-001 | Managers reconcile weekly | belief | high | E-001, E-002, E-003 | validated |
+EOF
+OUT="$( cd "$TMP" && bash .specify/extensions/keel/scripts/bash/keel-gate.sh guide 2>&1 )"
+RC=$?
+[ $RC -eq 0 ] && ok "guide never blocks on a fully passing state (exit 0)" \
+  || no "guide should exit 0 on a fully passing state"
+printf '%s\n' "$OUT" | grep -q 'brief gate: would currently PASS' && ok "guide correctly reports brief gate would PASS once thresholds are met" \
+  || no "guide should report the brief gate would currently PASS once evidence/roles/validation clear the thresholds"
+
+# scenario: overridden high-risk assumption must not be mislabeled as validated/supported
+cat > "$TMP/keel/assumptions.md" <<'EOF'
+| ID | Statement | Type | Risk | Evidence | Status |
+|----|-----------|------|------|----------|--------|
+| A-001 | Managers reconcile weekly | belief | high | E-001, E-002, E-003 | validated |
+| A-002 | Buyers will pay $20/mo | belief | high |  | open |
+EOF
+printf 'override: A-002 - accepting pricing risk for v1 pilot\n' > "$TMP/keel/decisions.md"
+OUT="$( cd "$TMP" && bash .specify/extensions/keel/scripts/bash/keel-gate.sh guide 2>&1 )"
+RC=$?
+[ $RC -eq 0 ] && ok "guide never blocks with an overridden high-risk assumption (exit 0)" \
+  || no "guide should exit 0 with an overridden high-risk assumption"
+printf '%s\n' "$OUT" | grep -q '2 high-risk (0 unvalidated-and-blocking)' && \
+  ok "guide reports 0 unvalidated-and-blocking once the only unvalidated high-risk row is overridden" || \
+  no "guide's high-risk count should drop to 0 unvalidated-and-blocking once the row is overridden (regression: overridden rows must not be reported as validated/supported either - see keel-gate.sh guide phase)"
+printf '%s\n' "$OUT" | grep -q 'override recorded in keel/decisions.md for: A-002' && \
+  ok "guide surfaces the recorded override by ID" || no "guide should surface which assumption has a recorded override"
+
 rm -rf "$TMP"
 
 if [ "$FULL" -eq 1 ]; then

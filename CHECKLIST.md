@@ -161,12 +161,13 @@ safety net.
       un-stamped "system" state renders wrong
 - [ ] `body` has an explicit background — never transparent, or it silently
       borrows the host page's theme
-- [ ] The hand-authored hero diagram SVG uses `style="fill:var(--x)"` /
-      `style="stroke:var(--x)"` for every color, never a hardcoded hex. This
-      already broke once: after the site's visual redesign made the hero
-      follow the normal light/dark tokens (it's no longer fixed-dark — that
-      was an earlier, now-superseded design), the diagram's own colors were
-      still hardcoded hex tuned for one background. Its container correctly
+- [ ] The hand-authored workflow diagram SVG (`.workflow-diagram`, in `#how`
+      as of 2026-08-16 — formerly `.hero-diagram-band` in the hero) uses
+      `style="fill:var(--x)"` / `style="stroke:var(--x)"` for every color,
+      never a hardcoded hex. This already broke once: after an earlier
+      visual redesign made its container follow the normal light/dark
+      tokens (no longer fixed-dark), the diagram's own colors were still
+      hardcoded hex tuned for one background. Its container correctly
       re-themed; the SVG's text didn't, and "Spec Kit builds it" went
       unreadable in dark mode. Plain `fill="#hex"` / `stroke="#hex"`
       attributes do **not** parse `var()` — only `style="fill:var(--x)"` does.
@@ -191,8 +192,16 @@ safety net.
       a dedicated check for it here instead of assuming this bullet still
       covers it.
 
-### The hero diagram (hand-authored SVG — the most fragile piece on the page)
+### The workflow diagram (hand-authored SVG — the most fragile piece on the page)
 
+- [ ] **Lives in `#how` now, not the hero** (moved 2026-08-16 — a founder
+      shouldn't hit `constitution`/`plan`/`implement`/`converge` before they
+      understand the basic promise; it's technical validation for someone
+      who already knows Spec Kit, not introductory content). The class is
+      `.workflow-diagram`, not `.hero-diagram-band` — that old class name
+      and its CSS no longer exist. If this ever gets copy-pasted back into
+      the hero, that's a regression of the exact thing this checklist entry
+      exists to catch.
 - [ ] Desktop and mobile SVGs render with **no visual overlap or clipping** —
       this has to be checked visually; misaligned `x`/`y` coordinates are
       syntactically valid SVG and will never throw an error

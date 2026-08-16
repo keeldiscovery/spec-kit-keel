@@ -184,6 +184,23 @@ safety net.
 
 ### Interactivity
 
+- [ ] **Neither file uses CSS `scroll-behavior:smooth` anymore** (removed
+      2026-08-16, both `index.html` and `showcase/index.html`). Native
+      smooth scrolling's animation duration scales with distance and
+      isn't capped — a deep link or long same-page jump could take 2-3
+      real seconds, which is exactly what got reported. Same-page anchor
+      clicks now go through a small JS-delegated handler
+      (`a[href^="#"]` → `preventDefault()` → a fixed-duration
+      `requestAnimationFrame` scroll, 450ms, respecting
+      `prefers-reduced-motion`) defined near the top of each file's
+      `<script>`. **Do not re-add `scroll-behavior:smooth` to `html`** —
+      it would silently reintroduce the uncapped-duration bug alongside
+      the new JS scroll, likely fighting it. A genuine deep link (page
+      loads fresh with a `#hash` already in the URL — typed directly, or
+      the cross-page `/?setup=1#install` link) is never a click, so it's
+      never intercepted, and correctly falls back to the browser's
+      default **instant** jump — that's intentional, not a gap to "fix"
+      by adding animation there too.
 - [ ] Install toggle: each pill correctly shows/hides its panel, updates
       `aria-selected`, and its own copy buttons grab the right text — two
       near-identical panels sharing similar step content is exactly where a
@@ -440,6 +457,43 @@ safety net.
       (`feature/guided-validation-workflow`) still appears, just
       downgraded to a `.stat.branch` metadata pill in the stat row instead
       of the headline eyebrow.
+- [ ] `showcase/index.html` itself no longer says "four interviews" (dek)
+      or "Not simulated — the actual script, against the actual evidence"
+      (gate beat h3) — fixed 2026-08-16, a **separate** instance from the
+      homepage teaser fix above (this one's on the Showcase page's own
+      hero/gate-beat, not the homepage). Now: "four disclosed synthetic
+      interview records" and "The actual gate, run against the disclosed
+      test evidence." Same underlying issue as the homepage fix — don't
+      let "real"/"actual" framing get ahead of the synthetic-data
+      disclosure again on either page.
+- [ ] The hero's `.hero-card` carries an explicit `.hero-card-tag` label
+      ("Example Keel Guide output," added 2026-08-16) above its title —
+      without it, "Interview billing administrators" reads as a real
+      personalized result for whoever's currently viewing the page rather
+      than illustrative example content. Don't remove this label as
+      visual "cleanup"; it's load-bearing honesty, not decoration.
+- [ ] The `data-panel="new"` (beginner) install panel has a `.beginner-help`
+      line at its end ("Setup looks unfamiliar? Tell us where you're
+      stuck.", added 2026-08-16) linking to the same founder-help survey
+      as `#continue`'s Option 2 — this was flagged as a real gap: a
+      founder hitting `uv`/Python/CLI commands for the first time had no
+      nearby way out. Its href is set from the same
+      `FOUNDER_HELP_SURVEY_URL` constant as `#founder-help-survey-link`
+      (both ids are now in the `forEach` that sets survey hrefs on load —
+      if a third survey link gets added anywhere, add its id to that same
+      list rather than writing a new one-off assignment).
+- [ ] Neither footer (`index.html`'s or `showcase/index.html`'s) states a
+      bare `/speckit.specify` / `/speckit-specify` as if it were universal
+      invocation syntax — both now read "...before Spec Kit's Specify
+      step" (fixed 2026-08-16). This is distinct from the *other*
+      `/speckit.specify` mentions still in `index.html` (in `#why`, the
+      `#install` intro, and the Technical Details accordion) — those sit
+      inside full explanatory paragraphs already establishing context (or,
+      for the agent-selector's "Another Spec Kit integration" rule table,
+      are the correct multi-format mapping the whole feature exists to
+      provide) and were left alone. The footer instances were flagged
+      specifically because they had **no** surrounding context — a bare
+      tagline on every page.
 
 ### Responsive check
 

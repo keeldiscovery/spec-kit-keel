@@ -161,6 +161,17 @@ safety net.
       un-stamped "system" state renders wrong
 - [ ] `body` has an explicit background — never transparent, or it silently
       borrows the host page's theme
+- [ ] `--ink-faint` is `#666862` (both `index.html` and `showcase/index.html`
+      light `:root`), not `#8a8b86`. **2026-08-16**: the old value measured
+      ~3.43:1 against white — below the 4.5:1 normal-text WCAG target — and
+      it's used for real reading content (install explanations, trust
+      statement, agent-format disclosures), not just decoration. The new
+      value measures ~5.64:1. If this ever gets "restored" to the lighter,
+      more subtle gray because someone likes the look better, that's a
+      contrast regression, not a style preference — re-run the ratio check
+      before changing it back. (Dark mode's `--ink-faint` was left alone;
+      the complaint was specifically about the light-mode/white-background
+      case.)
 - [ ] **The hand-authored workflow SVG diagram no longer exists** (removed
       2026-08-16, not just relocated this time — first it moved
       hero→`#how` on 2026-08-15, then `#how` itself was dissolved into a
@@ -214,14 +225,21 @@ safety net.
       markup directly (the way it was before this feature), that's a
       regression back to the pre-2026-08-16 "scattered across pages"
       problem this was built to fix.
-- [ ] All four states render distinct, correct content — spot-check by
+- [ ] All five states render distinct, correct content — spot-check by
       clicking each `.agent-btn` and confirming: Claude Code shows
       `/speckit-keel-guide`; Codex CLI shows `$speckit-keel-guide`;
       GitHub Copilot shows the "ask Copilot to use the skill" explanation
       plus a copyable **prompt** (not a slash command); "Another Spec Kit
-      integration" (and the no-selection default) shows the three-rule
-      table, not a single command. None of the four may describe another
-      format as incorrect — this was an explicit requirement.
+      integration" shows the three-rule table. None of these may describe
+      another format as incorrect — this was an explicit requirement.
+      **2026-08-16, fixed a real bug**: the **no-selection default** must
+      show only "Choose your coding agent above to see how to start Keel."
+      — it originally fell through to the same three-rule table as
+      "Another Spec Kit integration," which meant every first-time visitor
+      saw fallback rules before ever touching the selector. `key === null`
+      and `key === 'other'` are handled as separate branches in
+      `startKeelHTML()` now; don't collapse them back into one "no
+      selection" case.
 - [ ] Copy buttons in the agent-specific areas copy exactly what's
       currently rendered, not a stale value — this depends on the
       event-delegation copy-button fix above still being in place.
@@ -237,16 +255,30 @@ safety net.
       The always-visible agent-button row **is** the "change coding
       agent" control — there's no separate reset button; clicking a
       different pill changes the selection immediately.
+      **2026-08-16, fixed a real bug**: the post-selection prompt text said
+      "...above to change this," but the buttons render *below* the prompt
+      paragraph in the DOM, not above it — backwards. Now reads "Select
+      another coding agent to change these instructions," which doesn't
+      make a position claim at all. If the buttons ever move above the
+      prompt, this specific wording stops being wrong but should still be
+      double-checked.
 - [ ] `showcase/index.html`'s guide-chips still show the **unmodified**
       historical `/speckit.keel.guide` text (Change 7 requirement:
       historical examples must not be dynamically rewritten) — only the
       explanatory note right after the first chip should ever change, not
       the chip text itself. That note doesn't name a specific coding
       agent (there's no verified record of which one the real ShipLog run
-      used) — it identifies the *form* shown (Spec Kit's dotted manifest
-      form) and links to `/#install` for the reader's own agent. Don't
-      "fix" this into naming a specific agent without actually verifying
-      it first.
+      used) — it identifies the *form* shown (Spec Kit's dotted format)
+      and links to `/#install` for the reader's own agent. Don't "fix"
+      this into naming a specific agent without actually verifying it
+      first.
+      **2026-08-16**: shortened to one sentence ("Example shown using
+      Spec Kit's dotted command format. Other agents may use dashes, $,
+      or a named skill." + a "See invocation formats" link to `/#install`)
+      — it used to be a much longer paragraph that visually dominated the
+      first beat. Keep it this short; don't let it creep back into a full
+      explanation, and don't repeat it after every guide-chip — one
+      mention for the whole page is the point.
 
 ### The "how Keel fits" mini-flow and `#install` accordions (added 2026-08-16, replaced the removed diagram/`#how` section)
 
@@ -275,6 +307,46 @@ safety net.
 - [ ] `.mini-flow` wraps sanely at narrow widths (stacks vertically under
       560px per its media query) — check visually, this is new and hasn't
       been eyeballed on a real mobile viewport yet.
+      **2026-08-16**: switched from `flex` to a `grid` with
+      `1fr auto 1fr auto 1fr` columns so the three steps stay equal-width
+      across the panel instead of hugging the left edge with the rest of
+      the gray `.how-fit` panel empty — this was flagged as looking
+      unfinished. If it ever goes back to flex, re-check that the steps
+      still span the full width rather than clumping left again.
+
+### Hero (`.hero-grid`, added 2026-08-16 — desktop right-column output card)
+
+- [ ] `.hero-grid` is a two-column grid (content left, `.hero-card` right)
+      above 880px, collapsing to one column below it — check both. On
+      mobile the card must render *after* the CTA buttons in reading
+      order (it does, by DOM order, since collapsing a grid to one column
+      just stacks items in source order — don't "fix" this with a CSS
+      `order` property that could silently break if the breakpoint or
+      markup order ever changes).
+- [ ] `.hero-card` is founder-friendly example content (labeled "Current
+      stage" / "Keel found" / "Recommended next step"), explicitly **not**
+      styled as a terminal (no `.term`/dark monospace treatment) and
+      **not** a resurrection of the removed technical diagram — this was
+      an explicit distinction in the request that added it. If someone
+      "improves" it toward looking more like real console output, that's
+      drifting back toward the thing it was deliberately built to avoid.
+- [ ] The hero's showcase link is `.hero-showcase-link` (not `.caveat` —
+      that class no longer exists anywhere in `index.html`, checked
+      2026-08-16), reads "View the end-to-end showcase→" with a non-italic
+      weight, and the arrow is glued to "showcase" with `&nbsp;` so it
+      can't wrap onto its own line. The trust statement
+      ("Keel won't produce a build brief...") is also non-italic now, with
+      a small shield-check `.trust-icon` SVG — both changes were explicit
+      requirements (the italic styling and the wrapping arrow were flagged
+      as looking like "an article citation," not a product action).
+- [ ] `.hero-strip` ("Open source · Spec Kit extension · Apache-2.0") sits
+      between the CTA buttons and the trust statement, inside
+      `.hero-footnotes` — a dedicated wrapper with its own tight internal
+      `gap`, not just more items dropped into `.hero-content`'s larger
+      flex `gap`. If new hero footnote-style lines get added later, put
+      them in `.hero-footnotes` too, not directly in `.hero-content`, or
+      the spacing will look inconsistent with everything else in that
+      group.
 
 ### Copy accuracy — the site makes specific factual claims
 
@@ -344,6 +416,30 @@ safety net.
       separate implementations that can drift. The `#install` anchor in
       the URL does the scrolling (native browser behavior); the JS only
       needs to handle the tab selection.
+- [ ] `#newfounder, #continue, #why, #how, #install` all have
+      `scroll-margin-top:88px` (added 2026-08-16) so the sticky nav
+      doesn't cover the first line of content when you jump straight to
+      one — `#continue` specifically was landing with "How would you like
+      to continue?" hidden behind the nav bar before this. If a new
+      anchor-linked section gets added (from outside, e.g. another
+      cross-page link, or a nav item), add it to this same selector rather
+      than styling it separately — one rule, one list of ids.
+- [ ] The homepage's showcase-teaser paragraph no longer says "real
+      evidence" / "Not simulated" (fixed 2026-08-16 — flagged as
+      contradicting the Showcase page's own synthetic-interview
+      disclosure, even though the disclosure itself was accurate). Current
+      text: "A real execution of Keel and Spec Kit using a disclosed
+      synthetic interview dataset. The gate, build, live verification and
+      audit are real." If this section's copy changes again, keep the
+      disclosure in the same breath as the "real" claim — that's the
+      actual fix, not just different wording.
+- [ ] `showcase/index.html`'s eyebrow reads "End-to-end showcase," not the
+      old "A showcase — dogfooding feature/guided-validation-workflow"
+      (changed 2026-08-16 — the branch name read as an internal detail
+      too prominent for a page header). The branch name itself
+      (`feature/guided-validation-workflow`) still appears, just
+      downgraded to a `.stat.branch` metadata pill in the stat row instead
+      of the headline eyebrow.
 
 ### Responsive check
 

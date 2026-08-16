@@ -228,6 +228,16 @@ safety net.
       Outline — added 2026-08-15, grounded in that file's language at the
       time. If `guide.md`'s phase logic changes, these five chips drift
       out of sync silently; nothing checks them automatically.
+- [ ] The founder help-discovery block at the end of `#newfounder`
+      (added 2026-08-15) still holds up:
+      `FOUNDER_HELP_SURVEY_URL` (one `const` in its own script block) is the
+      **only** place that URL appears — grep for `surveymonkey.com` before
+      adding a second reference anywhere; the link still resolves; the copy
+      still says "not a sales form" / "no commitment" and never mentions
+      pricing, consulting, or a support guarantee — this was an explicit
+      requirement, not a style choice; and "Set it up myself" still
+      `.click()`s the real `.toggle-btn[data-panel="new"]` rather than
+      duplicating the install-toggle's show/hide logic.
 
 ### Responsive check
 

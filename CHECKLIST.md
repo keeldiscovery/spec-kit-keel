@@ -161,16 +161,15 @@ safety net.
       un-stamped "system" state renders wrong
 - [ ] `body` has an explicit background — never transparent, or it silently
       borrows the host page's theme
-- [ ] The hand-authored workflow diagram SVG (`.workflow-diagram`, in `#how`
-      as of 2026-08-16 — formerly `.hero-diagram-band` in the hero) uses
-      `style="fill:var(--x)"` / `style="stroke:var(--x)"` for every color,
-      never a hardcoded hex. This already broke once: after an earlier
-      visual redesign made its container follow the normal light/dark
-      tokens (no longer fixed-dark), the diagram's own colors were still
-      hardcoded hex tuned for one background. Its container correctly
-      re-themed; the SVG's text didn't, and "Spec Kit builds it" went
-      unreadable in dark mode. Plain `fill="#hex"` / `stroke="#hex"`
-      attributes do **not** parse `var()` — only `style="fill:var(--x)"` does.
+- [ ] **The hand-authored workflow SVG diagram no longer exists** (removed
+      2026-08-16, not just relocated this time — first it moved
+      hero→`#how` on 2026-08-15, then `#how` itself was dissolved into a
+      compact `#install`-only subsection the next day). If a diagram like
+      it ever comes back, re-apply the historical lesson that lived here:
+      hardcoded hex on an SVG's `fill`/`stroke` attributes doesn't follow
+      the site's light/dark tokens — only `style="fill:var(--x)"` /
+      `style="stroke:var(--x)"` does, and this broke once in dark mode
+      because of exactly that.
 
 ### Interactivity
 
@@ -178,9 +177,14 @@ safety net.
       `aria-selected`, and its own copy buttons grab the right text — two
       near-identical panels sharing similar step content is exactly where a
       `data-target`/`id` mismatch sneaks in unnoticed
-- [ ] "How it works" `<details>` disclosure opens/closes and the chevron
+- [ ] The three `<details class="phases-disclosure">` accordions in
+      `#install` (as of 2026-08-16: "Advanced: Show individual Keel
+      commands" ×2, one per install panel, and "Technical details: Five
+      phases and enforcement gate" ×1, shared) open/close and the chevron
       rotates, using native `<details>` behavior — verify no JS regression
-      accidentally makes it JS-dependent
+      accidentally makes it JS-dependent, and that **all three render
+      collapsed by default** (no `open` attribute) — this was an explicit
+      requirement, not a default that happened to be convenient.
 - [ ] All copy buttons (index.html's install panels; showcase's "Run it
       yourself" clone command) show "copied" feedback and reset to "copy"
       afterward.
@@ -192,24 +196,29 @@ safety net.
       a dedicated check for it here instead of assuming this bullet still
       covers it.
 
-### The workflow diagram (hand-authored SVG — the most fragile piece on the page)
+### The "how Keel fits" mini-flow and `#install` accordions (added 2026-08-16, replaced the removed diagram/`#how` section)
 
-- [ ] **Lives in `#how` now, not the hero** (moved 2026-08-16 — a founder
-      shouldn't hit `constitution`/`plan`/`implement`/`converge` before they
-      understand the basic promise; it's technical validation for someone
-      who already knows Spec Kit, not introductory content). The class is
-      `.workflow-diagram`, not `.hero-diagram-band` — that old class name
-      and its CSS no longer exist. If this ever gets copy-pasted back into
-      the hero, that's a regression of the exact thing this checklist entry
-      exists to catch.
-- [ ] Desktop and mobile SVGs render with **no visual overlap or clipping** —
-      this has to be checked visually; misaligned `x`/`y` coordinates are
-      syntactically valid SVG and will never throw an error
-- [ ] Diagram text (box labels, connector labels) still matches the current
-      real command names and behavior — this diagram has gone stale before
-      (it used to show four sequential Keel commands as the primary flow,
-      which stopped being true the moment `/speckit.keel.guide` shipped)
-- [ ] `aria-label` on both SVGs still accurately describes current content
+- [ ] `#install` opens with the compact `id="how"` subsection ("How Keel
+      fits with Spec Kit" + the three-step `.mini-flow`: Validate →
+      `/speckit.keel.guide`, Build → Spec Kit, Check what shipped →
+      `/speckit.keel.guide`) **before** the install-toggle tabs — this is
+      the whole point of the restructure: whoever clicks "I use Spec Kit —
+      install Keel" in the hero should see where Keel fits immediately,
+      not scroll past tabs and steps first.
+      `id="how"` is kept specifically so old `/#how` links (e.g. from
+      `showcase/index.html`, or anyone's bookmark) still land somewhere
+      sensible — if this id ever moves or gets removed, check for external
+      references first.
+- [ ] Each install panel's "Start Keel" step shows **only**
+      `/speckit.keel.guide` by default — the other five commands
+      (`init`/`add-evidence`/`check`/`brief`/`audit`) must be inside that
+      panel's collapsed "Advanced: Show individual Keel commands"
+      `<details>`, not visible on load. This was a specific reviewer
+      requirement ("do not display all six commands by default"), not a
+      space-saving choice — don't casually revert it while editing nearby.
+- [ ] `.mini-flow` wraps sanely at narrow widths (stacks vertically under
+      560px per its media query) — check visually, this is new and hasn't
+      been eyeballed on a real mobile viewport yet.
 
 ### Copy accuracy — the site makes specific factual claims
 
@@ -237,16 +246,44 @@ safety net.
       Outline — added 2026-08-15, grounded in that file's language at the
       time. If `guide.md`'s phase logic changes, these five chips drift
       out of sync silently; nothing checks them automatically.
-- [ ] The founder help-discovery block at the end of `#newfounder`
-      (added 2026-08-15) still holds up:
-      `FOUNDER_HELP_SURVEY_URL` (one `const` in its own script block) is the
-      **only** place that URL appears — grep for `surveymonkey.com` before
-      adding a second reference anywhere; the link still resolves; the copy
-      still says "not a sales form" / "no commitment" and never mentions
-      pricing, consulting, or a support guarantee — this was an explicit
-      requirement, not a style choice; and "Set it up myself" still
-      `.click()`s the real `.toggle-btn[data-panel="new"]` rather than
-      duplicating the install-toggle's show/hide logic.
+- [ ] The founder help-discovery block, now wrapped in `id="continue"`
+      (`#newfounder`, added 2026-08-15, `id="continue"` added 2026-08-16 —
+      it's a linkable destination now: `showcase/index.html`'s "Back to my
+      options" link and nav both point at `/#continue`) still holds up:
+      the copy still says "not a sales form" / "no commitment" and never
+      mentions pricing, consulting, or a support guarantee — this was an
+      explicit requirement, not a style choice; Option 1 is titled "Set up
+      Keel myself" (renamed 2026-08-16 from "Try it myself" — don't let it
+      drift back); and its button still `.click()`s the real
+      `.toggle-btn[data-panel="new"]` rather than duplicating the
+      install-toggle's show/hide logic.
+- [ ] `FOUNDER_HELP_SURVEY_URL` is **not** a single global source of truth
+      anymore — as of 2026-08-16 there are **two** independent `const`
+      declarations, one in `index.html`'s script and one in
+      `showcase/index.html`'s script (separate documents can't share a JS
+      variable without a shared external file, which wasn't worth adding
+      for one constant). Each is still the only occurrence *within its own
+      file* — grep each file separately for `surveymonkey.com` before
+      adding a second reference in either — and both must resolve to the
+      same URL. If they ever diverge, that's a real bug, not a stylistic
+      difference.
+- [ ] No link anywhere points at `/#tryit` or `/#how` as a **standalone
+      destination** — `#tryit` hasn't existed since 2026-08-15, and `#how`
+      moved *inside* `#install` on 2026-08-16 (still a valid anchor, just
+      not a separate section — a nav item labeled "How it works" pointing
+      there would now be confusing, which is why it was dropped rather
+      than kept). `grep -rn '#tryit\|#how"' index.html showcase/index.html`
+      before adding any new link — this exact class of bug (a showcase nav
+      link surviving a homepage restructure) has already happened once.
+- [ ] The cross-page "set up the beginner install path" links
+      (`showcase/index.html`'s "← Back to my options" is `/#continue`; its
+      bottom "Set up Keel myself" is `/?setup=1#install`) still work:
+      `index.html`'s script checks `location.search` for `setup=1` on
+      load and calls the **same** `selectBeginnerInstallTab()` function the
+      in-page button uses — don't let a future edit fork these into two
+      separate implementations that can drift. The `#install` anchor in
+      the URL does the scrolling (native browser behavior); the JS only
+      needs to handle the tab selection.
 
 ### Responsive check
 

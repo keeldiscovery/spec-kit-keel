@@ -195,35 +195,95 @@ safety net.
       multi-command copy block on either page. If either comes back, restore
       a dedicated check for it here instead of assuming this bullet still
       covers it.
+      **2026-08-16**: `index.html`'s copy-button handler is now **event
+      delegation** on `document` (`e.target.closest('.copybtn')`), not a
+      per-button `querySelectorAll(...).forEach(addEventListener)` — the
+      agent selector below replaces `#start-keel-*`/`#advanced-commands-*`
+      via `innerHTML` after page load, and a per-button binding done once
+      at load would silently never attach to those buttons. If this ever
+      gets "simplified" back to per-button binding, the agent-specific copy
+      buttons will look fine visually but do nothing on click.
+
+### Agent-specific Keel invocation (`#install`, added 2026-08-16)
+
+- [ ] `KEEL_AGENTS` (in `index.html`'s script) is the **only** place
+      dotted/dashed/`$`/skill-name command strings are defined for
+      Install — the "Start Keel" step and "Advanced" accordion in both
+      panels render from it via `startKeelHTML()`/`advancedHTML()`. If a
+      command string ever gets hardcoded again in the install-panel
+      markup directly (the way it was before this feature), that's a
+      regression back to the pre-2026-08-16 "scattered across pages"
+      problem this was built to fix.
+- [ ] All four states render distinct, correct content — spot-check by
+      clicking each `.agent-btn` and confirming: Claude Code shows
+      `/speckit-keel-guide`; Codex CLI shows `$speckit-keel-guide`;
+      GitHub Copilot shows the "ask Copilot to use the skill" explanation
+      plus a copyable **prompt** (not a slash command); "Another Spec Kit
+      integration" (and the no-selection default) shows the three-rule
+      table, not a single command. None of the four may describe another
+      format as incorrect — this was an explicit requirement.
+- [ ] Copy buttons in the agent-specific areas copy exactly what's
+      currently rendered, not a stale value — this depends on the
+      event-delegation copy-button fix above still being in place.
+- [ ] Selection persists via `localStorage['keel-agent-integration']`
+      across: a reload, leaving for `/showcase/` and coming back (same
+      origin, same storage — nothing showcase-specific needed), switching
+      the have/new install-toggle tabs (both panels re-render on every
+      selection, not just the visible one), and opening/closing either
+      accordion (content is set independently of the `<details>` `open`
+      state, so it can't desync). No agent button shows `aria-pressed`
+      `"true"` on first visit with empty storage — a saved/restored
+      selection is the only thing allowed to preselect one.
+      The always-visible agent-button row **is** the "change coding
+      agent" control — there's no separate reset button; clicking a
+      different pill changes the selection immediately.
+- [ ] `showcase/index.html`'s guide-chips still show the **unmodified**
+      historical `/speckit.keel.guide` text (Change 7 requirement:
+      historical examples must not be dynamically rewritten) — only the
+      explanatory note right after the first chip should ever change, not
+      the chip text itself. That note doesn't name a specific coding
+      agent (there's no verified record of which one the real ShipLog run
+      used) — it identifies the *form* shown (Spec Kit's dotted manifest
+      form) and links to `/#install` for the reader's own agent. Don't
+      "fix" this into naming a specific agent without actually verifying
+      it first.
 
 ### The "how Keel fits" mini-flow and `#install` accordions (added 2026-08-16, replaced the removed diagram/`#how` section)
 
 - [ ] `#install` opens with the compact `id="how"` subsection ("How Keel
-      fits with Spec Kit" + the three-step `.mini-flow`: Validate →
-      `/speckit.keel.guide`, Build → Spec Kit, Check what shipped →
-      `/speckit.keel.guide`) **before** the install-toggle tabs — this is
-      the whole point of the restructure: whoever clicks "I use Spec Kit —
-      install Keel" in the hero should see where Keel fits immediately,
-      not scroll past tabs and steps first.
+      fits with Spec Kit" + the three-step `.mini-flow`) **before** the
+      install-toggle tabs — this is the whole point of the restructure:
+      whoever clicks "I use Spec Kit — install Keel" in the hero should
+      see where Keel fits immediately, not scroll past tabs and steps
+      first.
+      **2026-08-16**: the mini-flow's Validate/Check-what-shipped steps
+      show the neutral label "Keel Guide", not a specific command string —
+      this section sits *before* the agent selector, so it must stay
+      agent-neutral (see the agent-invocation entries above).
       `id="how"` is kept specifically so old `/#how` links (e.g. from
       `showcase/index.html`, or anyone's bookmark) still land somewhere
       sensible — if this id ever moves or gets removed, check for external
       references first.
-- [ ] Each install panel's "Start Keel" step shows **only**
-      `/speckit.keel.guide` by default — the other five commands
-      (`init`/`add-evidence`/`check`/`brief`/`audit`) must be inside that
-      panel's collapsed "Advanced: Show individual Keel commands"
-      `<details>`, not visible on load. This was a specific reviewer
-      requirement ("do not display all six commands by default"), not a
-      space-saving choice — don't casually revert it while editing nearby.
+- [ ] Each install panel's "Start Keel" step shows **only one** thing by
+      default (a single command, or — for Copilot — one explanation plus
+      one prompt), whichever the selected coding agent calls for; the
+      other five commands live only in that panel's collapsed "Advanced:
+      Show individual Keel commands" `<details>`. This was a specific
+      reviewer requirement ("do not display all six commands by default"),
+      not a space-saving choice — don't casually revert it while editing
+      nearby.
 - [ ] `.mini-flow` wraps sanely at narrow widths (stacks vertically under
       560px per its media query) — check visually, this is new and hasn't
       been eyeballed on a real mobile viewport yet.
 
 ### Copy accuracy — the site makes specific factual claims
 
-- [ ] Command list in the Install section matches what `extension.yml`
-      actually provides
+- [ ] `KEEL_AGENTS`' five-command lists (all four variants: dotted,
+      Claude Code dashed, Codex `$`, Copilot bare skill names) each still
+      match what `extension.yml` actually provides — same five commands,
+      same order, just reformatted per integration. If a command gets
+      added, renamed, or removed in `extension.yml`, all four lists need
+      the same edit, not just the dotted one.
 - [ ] Version tags (nav + footer) match `spec-kit-keel`'s `extension.yml`
       version
 - [ ] Install commands (`specify extension add ...`, `uv tool install

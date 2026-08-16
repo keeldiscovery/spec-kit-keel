@@ -164,11 +164,13 @@ static HTML file. Every item below is a manual/visual check; this checklist
       independently
 - [ ] Any claim about "what running these commands produces" is checked
       against real command behavior, not assumed to match a hardcoded demo.
-      **Known open gap as of this writing**: the "Or run it for real" section
-      claims pasting its commands is "exactly what" the interactive demo
-      above it produces — but `/speckit.keel.init` generates assumptions via
-      LLM, non-deterministically, while the demo is hand-scripted. Not yet
-      fixed; flagged here so it isn't lost.
+      **Previously an open gap, fixed 2026-08-15**: the "Or run it for real"
+      section used to claim pasting its commands was "exactly what" the
+      worked-example demo above it produces — but `/speckit.keel.init`
+      generates assumptions via LLM, non-deterministically, while the demo
+      is hand-scripted. The copy now says wording will differ and only the
+      mechanism is guaranteed identical. If this section gets rewritten
+      again, re-check that the "exactly" framing doesn't creep back in.
 
 ### Responsive check
 

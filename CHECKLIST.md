@@ -137,9 +137,11 @@ users at it.
 
 ## Part 2 — `keeldiscovery.github.io` (the website)
 
-There is **no automated test suite** for this site — it's one hand-authored
-static HTML file. Every item below is a manual/visual check; this checklist
-*is* the safety net.
+There is **no automated test suite** for this site — it's hand-authored
+static HTML, now two files (`index.html` and `showcase/index.html`, added
+2026-08-15). Every item below is a manual/visual check, and applies to
+**both** files unless a bullet says otherwise; this checklist *is* the
+safety net.
 
 ### Structural validity (fast, catches the most common slip)
 
@@ -178,12 +180,16 @@ static HTML file. Every item below is a manual/visual check; this checklist
 - [ ] "How it works" `<details>` disclosure opens/closes and the chevron
       rotates, using native `<details>` behavior — verify no JS regression
       accidentally makes it JS-dependent
-- [ ] "Try it" interactive demo: revealing each interview updates the
-      assumptions table, the gate terminal output, and the recommended
-      next action consistently; the brief only unlocks once the demo's own
-      gate math would actually pass
-- [ ] All copy buttons show "copied" feedback and reset afterward (the
-      multi-command block resets to "copy all", not "copy")
+- [ ] All copy buttons (index.html's install panels; showcase's "Run it
+      yourself" clone command) show "copied" feedback and reset to "copy"
+      afterward.
+      **2026-08-15**: the old `#tryit` interactive demo (fixed assumptions
+      table, gate terminal, brief-unlock animation) and its multi-command
+      "copy all" block were removed in favor of a static teaser linking to
+      `/showcase/` — there is currently no interactive element and no
+      multi-command copy block on either page. If either comes back, restore
+      a dedicated check for it here instead of assuming this bullet still
+      covers it.
 
 ### The hero diagram (hand-authored SVG — the most fragile piece on the page)
 
@@ -208,13 +214,20 @@ static HTML file. Every item below is a manual/visual check; this checklist
       independently
 - [ ] Any claim about "what running these commands produces" is checked
       against real command behavior, not assumed to match a hardcoded demo.
-      **Previously an open gap, fixed 2026-08-15**: the "Or run it for real"
-      section used to claim pasting its commands was "exactly what" the
-      worked-example demo above it produces — but `/speckit.keel.init`
-      generates assumptions via LLM, non-deterministically, while the demo
-      is hand-scripted. The copy now says wording will differ and only the
-      mechanism is guaranteed identical. If this section gets rewritten
-      again, re-check that the "exactly" framing doesn't creep back in.
+      **History**: `index.html` used to have a "Try it" section with a
+      fixed JS-simulated demo, plus an "Or run it for real" block claiming
+      pasting its commands was "exactly what" the demo produced — untrue,
+      since `/speckit.keel.init` generates assumptions via LLM,
+      non-deterministically. Both were removed 2026-08-15 in favor of a
+      teaser linking to `/showcase/`, a real (not simulated) run. If a
+      hardcoded demo of Keel's output is ever added back anywhere, re-apply
+      this check — don't claim a script's exact wording matches an LLM's.
+- [ ] `showcase/index.html`'s `.guide-chip` elements (the "detected: X →
+      did Y" tags threaded through the timeline) describe behavior that
+      still matches `commands/guide.md`'s actual documented phase-detection
+      Outline — added 2026-08-15, grounded in that file's language at the
+      time. If `guide.md`'s phase logic changes, these five chips drift
+      out of sync silently; nothing checks them automatically.
 
 ### Responsive check
 

@@ -23,15 +23,16 @@ directly — `guide` is a router around them, not a replacement.
 
 ## Install
 
-`keeldiscovery/spec-kit-keel` isn't in Spec Kit's bundled extension catalog
-yet, so the bare `specify extension add keel` won't resolve it — install
-straight from this repo instead:
+Keel is listed in Spec Kit's community catalog, but the entry is still
+syncing to v0.2.0 — until that update lands, the bare
+`specify extension add keel` will resolve the older v0.1.1. Install the
+pinned v0.2.0 release directly instead:
 
 ```bash
-specify extension add keel --from https://github.com/keeldiscovery/spec-kit-keel/archive/refs/heads/main.zip
+specify extension add keel --from https://github.com/keeldiscovery/spec-kit-keel/archive/refs/tags/v0.2.0.zip
 ```
 
-Spec Kit will ask you to confirm installing from an external, non-catalog
+Spec Kit will ask you to confirm installing from an external, non-catalog-resolved
 source (`y` at the prompt) — that's expected for any `--from` install, not
 specific to Keel.
 

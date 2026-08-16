@@ -182,6 +182,76 @@ safety net.
       `style="stroke:var(--x)"` does, and this broke once in dark mode
       because of exactly that.
 
+### Analytics instrumentation (GoatCounter, reworked 2026-08-16)
+
+Before this pass, several distinct actions shared one event name (e.g.
+every SurveyMonkey link fired `founder_help_survey_click`, both install
+panels' Start Keel button fired `copy-start-keel`), which made it
+impossible to answer basic funnel questions from the GoatCounter data.
+Everything below encodes path/agent/source into the event **name** itself
+— GoatCounter events don't carry extra properties, so the name is the
+only place this context can live.
+
+- [ ] **Survey links are three distinct events, not one.** `#continue`'s
+      Option 2 is `help-click-options`; the beginner install panel's
+      "Setup looks unfamiliar?" link is `help-click-install`;
+      `showcase/index.html`'s bottom "I need some guidance" is
+      `help-click-showcase`. All three still read from their own file's
+      single `FOUNDER_HELP_SURVEY_URL` constant (unchanged) — only the
+      `data-goatcounter-click` value and the `?source=` query param
+      differ per link.
+- [ ] **Start Keel and Advanced-commands copy events are path- and
+      agent-aware.** `startKeelHTML(preId, path, key)` and
+      `advancedHTML(preId, path, key)` (in `index.html`'s agent-selector
+      script) both take a `path` argument (`'existing'` or `'new'`) and
+      produce names like `copy-start-keel-existing-claude` /
+      `copy-advanced-new-codex`. If either function's signature changes,
+      check both call sites in `applyAgent()` pass the right path string
+      — a copy-paste that reuses `'existing'` for both would silently
+      merge the two funnels' data.
+- [ ] **Copying a command is intentionally *not* tracked as success.**
+      These are "installation intent" signals only. The reviewer's
+      "lightweight success check" (a post-copy "Did Keel Guide start
+      successfully?" prompt, `setup-success-*`/`setup-failed-*` events)
+      was **explicitly postponed**, not forgotten — don't add
+      success/failure framing to the copy events themselves in the
+      meantime; wire up the real prompt when that work actually happens.
+- [ ] **Section-view tracking** (`trackSectionView()`, a small
+      `IntersectionObserver` helper in `index.html`) fires
+      `founder-workflow-view`, `founder-options-view`,
+      `install-existing-view`, and `install-new-view` the first time each
+      section is ≥40% visible, then stops observing — these must fire
+      **once per visit**, not on every scroll in/out. `home-view` fires
+      on the `window` `load` event (not immediately at parse time) to
+      give the async GoatCounter script more time to be ready — the same
+      pattern is used for `showcase/index.html`'s `showcase-view-*` events.
+- [ ] **Showcase entry-source tracking** depends on `index.html`'s four
+      outbound links to `/showcase/` carrying a `?src=` param: the hero
+      link is `?src=hero`, `#newfounder`'s "Read the showcase" is
+      `?src=founder`, and both nav + footer links are `?src=nav`.
+      `showcase/index.html` reads this on load and fires exactly one of
+      `showcase-view-hero` / `showcase-view-founder-example` /
+      `showcase-view-navigation` (untagged or direct visits default to
+      "navigation" rather than firing nothing). If a new link to
+      `/showcase/` gets added anywhere, it needs a `?src=` value too, or
+      it'll silently get counted as navigation traffic.
+- [ ] **Showcase exit events are `showcase-exit-{setup,help,repository,back}`.**
+      Both of showcase's two GitHub-repo links (the hero's "Browse the
+      source" and the bottom CTA's "View the repo") intentionally share
+      `showcase-exit-repository` — the funnel spec asked for one
+      repository-exit signal, not two separately-attributed ones.
+- [ ] **Survey `?source=` URL params are currently inert.** Each
+      survey link now appends `?source=options` / `?source=install` /
+      `?source=showcase` to `FOUNDER_HELP_SURVEY_URL`, so that a
+      completed response can eventually be tied back to its entry point
+      — but this only works once a SurveyMonkey **Custom Variable** named
+      `source` is configured on the collector to actually capture the URL
+      param into responses. That's collector-settings configuration, not
+      something doable from this repo — no SurveyMonkey account access.
+      Until it's configured, the param does nothing (harmless, not
+      broken); after it's configured, no code change is needed — the
+      value is already being sent.
+
 ### Interactivity
 
 - [ ] **Neither file uses CSS `scroll-behavior:smooth` anymore** (removed

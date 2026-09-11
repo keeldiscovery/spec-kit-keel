@@ -1,0 +1,15 @@
+{
+  "PROBLEM_FRAME" : [ "project_name", "market" ],
+  "PROBLEM_ASSUMPTIONS" : [ "problem_statement", "existing_roles", "market", "founder_name" ],
+  "SOLUTION_FRAME" : [ "project_name", "problem_statement", "existing_roles", "market" ],
+  "SOLUTION_ASSUMPTIONS" : [ "solution_statement", "problem_statement", "existing_roles", "market", "founder_name" ],
+  "SOLUTION_REFRAME" : [ "current_statement", "problem_statement", "assumptions", "contradicted_evidence", "market" ],
+  "COMMERCIAL_FRAME" : [ "project_name", "problem_statement", "solution_statement", "existing_roles", "market" ],
+  "COMMERCIAL_ASSUMPTIONS" : [ "commercial_statement", "problem_statement", "solution_statement", "existing_roles", "market", "founder_name" ],
+  "COMMERCIAL_REFRAME" : [ "current_statement", "problem_statement", "solution_statement", "assumptions", "contradicted_evidence", "market" ],
+  "INTERPRET" : [ "invitation_id", "anchors" ],
+  "BRIEF" : [ "project_name", "market", "claims" ],
+  "PROBLEM_ASSUMPTIONS.correction" : [ "problem_statement", "existing_roles", "market", "founder_name", "current_draft", "founder_message" ],
+  "SOLUTION_ASSUMPTIONS.correction" : [ "solution_statement", "problem_statement", "existing_roles", "market", "founder_name", "current_draft", "founder_message" ],
+  "COMMERCIAL_ASSUMPTIONS.correction" : [ "commercial_statement", "problem_statement", "solution_statement", "existing_roles", "market", "founder_name", "current_draft", "founder_message" ]
+}

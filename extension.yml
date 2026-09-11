@@ -1,64 +1,37 @@
+# Spec Kit extension manifest, keel-cloud `canon/designs/keel-skill-design.md` §8.4, verbatim.
+#
+# `2.0.0` is the only substitution `make dist` performs anywhere in this tree; every other
+# byte of the built extension is copied (§8.1). One version, everywhere (D7).
+#
+# **No behaviour in a manifest** (D6): this file declares a name, a version, a path and a
+# description, and nothing that could make the extension behave differently from a bare drop of
+# the same skill. No `hooks` (decision 15), no `config`, no `templates`, and no environment
+# variable anywhere.
+#
+# `provides.scripts` names the connect script only. `keel_disconnect.py` ships in the tree beside
+# it and is reached the way the skill reaches it -- by the agent running the path `SKILL.md` names
+# -- because Spec Kit's `scripts` list is what the *commands* declare, and only
+# `speckit.keel.connect` runs one. `speckit.keel.brief` declares none at all: it is a prompt, and
+# there is nothing to run.
 schema_version: "1.0"
-
 extension:
-  id: "keel"
-  name: "Keel Discovery"
-  version: "0.2.0"
-  description: "Evidence-backed discovery upstream of speckit.specify, plus round-trip drift auditing after implementation."
-  author: "Keel Discovery"
-  repository: "https://github.com/keeldiscovery/spec-kit-keel"
-  license: "Apache-2.0"
-  effect: "read-write"
-
+  id: keel
+  name: Keel Connect
+  version: 2.0.0
+  description: Connect the local Keel runtime to Keel Cloud without leaving your agent.
+  author: Keel Discovery
+  repository: https://github.com/keeldiscovery/spec-kit-keel
+  license: Apache-2.0
 requires:
-  speckit_version: ">=0.15.0"
-
+  speckit_version: ">=1.0.0,<2.0.0"
+  tools:
+    - { name: python3, version: ">=3.9", required: true }
 provides:
   commands:
-    - name: "speckit.keel.guide"
-      file: "commands/guide.md"
-      description: "State-aware entry point: detects the current discovery phase and guides you to the next action"
-    - name: "speckit.keel.init"
-      file: "commands/init.md"
-      description: "Capture the hypothesis, derive assumptions, write a non-leading interview guide and an evidence-gathering plan"
-    - name: "speckit.keel.add-evidence"
-      file: "commands/add-evidence.md"
-      description: "Ingest one interview, extract claims with provenance, update assumption confidence"
-    - name: "speckit.keel.check"
-      file: "commands/check.md"
-      description: "Report coverage, saturation, and contradictions, then a five-option decision menu: pivot, gather evidence, reduce risk, narrow, or proceed"
-    - name: "speckit.keel.brief"
-      file: "commands/brief.md"
-      description: "Write constitution input and an evidence-backed brief for /speckit.specify"
-    - name: "speckit.keel.audit"
-      file: "commands/audit.md"
-      description: "Score spec quality; with keel/ present, diff the build against the evidence"
-
-  config:
-    - name: "keel-config.yml"
-      template: "keel-config.template.yml"
-      description: "Evidence thresholds and gate behavior"
-      required: false
-
-hooks:
-  before_plan:
-    command: "speckit.keel.check"
-    optional: true
-    prompt: "Keel: verify the spec is backed by evidence before planning?"
-    description: "Surfaces a coverage/saturation check before planning. Not run automatically: a project with no keel/ directory must not be blocked by a hook it never opted into. keel-gate.sh is what actually enforces, and only once keel/ exists."
-  after_implement:
-    command: "speckit.keel.audit"
-    optional: true
-    prompt: "Keel: audit the implementation against the original evidence?"
-    description: "Round-trip drift check between shipped code and approved intent."
-
-tags:
-  - "discovery"
-  - "evidence"
-  - "traceability"
-
-config:
-  defaults:
-    min_evidence_per_high_risk_assumption: 3
-    min_distinct_sources: 2
-    block_on_unvalidated_high_risk: true
+    - { name: speckit.keel.connect, file: commands/connect.md,
+        description: Check whether the local Keel runtime is connected, and start it if not. }
+    - { name: speckit.keel.brief, file: commands/brief.md,
+        description: Read what Keel has learned about this idea into the spec, in the founder's own words. }
+  scripts:
+    - { name: keel-connect-check, file: scripts/keel_connect_check.py, runtimes: [python] }
+tags: [keel, runtime, connect, agent, infrastructure]

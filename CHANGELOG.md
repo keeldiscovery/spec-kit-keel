@@ -3,6 +3,14 @@
 All notable changes to this extension are documented here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.0.1]
+
+Keel's address is `https://keeldiscovery.com`. The runtime inside is keel-runtime 0.2.1, whose
+built-in Keel Cloud address moved from `app.keeldiscovery.com` to the apex; nothing else changed.
+A runtime started by 2.0.0 keeps working (the old name still answers the API) and is replaced in
+place the next time "keel connect" finds it idle. The credential home on this machine is derived
+from the address, so the first connect after the upgrade approves the device once more.
+
 ## [2.0.0]
 
 Upgrades in place. "keel connect" now replaces a runtime that an older version of this extension

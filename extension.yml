@@ -1,6 +1,6 @@
 # Spec Kit extension manifest, keel-cloud `canon/designs/keel-skill-design.md` §8.4, verbatim.
 #
-# `2.0.0` is the only substitution `make dist` performs anywhere in this tree; every other
+# `2.0.1` is the only substitution `make dist` performs anywhere in this tree; every other
 # byte of the built extension is copied (§8.1). One version, everywhere (D7).
 #
 # **No behaviour in a manifest** (D6): this file declares a name, a version, a path and a
@@ -17,7 +17,7 @@ schema_version: "1.0"
 extension:
   id: keel
   name: Keel Connect
-  version: 2.0.0
+  version: 2.0.1
   description: Connect the local Keel runtime to Keel Cloud without leaving your agent.
   author: Keel Discovery
   repository: https://github.com/keeldiscovery/spec-kit-keel

@@ -30,12 +30,14 @@ DEFAULT_HOME = Path.home() / ".keel"
 # The address a founder reaches with no configuration of any kind (design §6.2, decision 12).
 # **Set as of design §13 step 8** (spec 034, live 2026-09-09): keel-cloud is deployed at
 # https://app.keeldiscovery.com and `/v2/setup` answers 200. A fresh install with nothing
-# configured now reaches that Keel rather than exiting.
+# configured now reaches that Keel rather than exiting. **Moved to the apex 2026-09-11** (spec
+# 008-apex-default; keel-cloud spec 041): the product's address is https://keeldiscovery.com and
+# app.keeldiscovery.com keeps answering the API for runtimes shipped with the old default.
 #
 # It is the **last** term of the chain and never outranks `--base-url`, `KEEL_BASE_URL` or
 # `$KEEL_HOME/config.json` (E-2). Because it has a value it is used *instead of* exiting -- that
 # is what makes cloud the default a fresh install reaches with zero configuration.
-CLOUD_BASE_URL = "https://app.keeldiscovery.com"
+CLOUD_BASE_URL = "https://keeldiscovery.com"
 
 # `~/.keel/bin/` is Keel's own. A Keel whose host would slug to a reserved name gets a different
 # directory, so `ls ~/.keel/` shows host slugs and nothing else (design §10.4).

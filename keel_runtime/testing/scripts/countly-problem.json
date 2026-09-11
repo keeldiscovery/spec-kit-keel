@@ -1,0 +1,470 @@
+{
+  "_description": "The PROBLEM stage of keel-cloud's frozen golden corpus entry 01-countly (Countly — restaurant inventory mismatches), in the result shapes keel-cloud's screenContracts export currently serves. The bundled default for `--executor scripted` with no --script.",
+  "_source": "keel-cloud canon/designs/measured-beliefs/corpus/01-countly.yaml",
+  "_keel_cloud_commit": "932fdfe",
+  "_generated_by": "tools/generate_bundled_script.py -- never hand-edited",
+  "_generated_at": "2026-09-07T23:02:35Z",
+  "PROBLEM_FRAME": [
+    {
+      "outcome": "COMPLETED",
+      "result": {
+        "statement": "Independent restaurant managers lose one to two hours most weeks reconciling physical against recorded inventory whenever a shipment doesn't match the invoice — right now they recount by hand and adjust the spreadsheet manually, though it's not yet clear how much of that time is pure friction versus unavoidable — based on the founder's own five years running a restaurant kitchen."
+      }
+    }
+  ],
+  "PROBLEM_ASSUMPTIONS": [
+    {
+      "outcome": "COMPLETED",
+      "result": {
+        "assumptions": [
+          {
+            "heading": "Mismatches happen at all",
+            "statement": "A delivery has not matched its invoice within the last three months.",
+            "risk": "LOAD_BEARING",
+            "mark": "DIRECT",
+            "expectation": {
+              "type": "INTERVAL",
+              "measure": {
+                "kind": "TIME_SINCE",
+                "unit": "days"
+              },
+              "upper": {
+                "value": 90,
+                "inclusive": true,
+                "exact": true
+              }
+            },
+            "selection": "S1",
+            "role": {
+              "new": {
+                "label": "Restaurant managers",
+                "roleType": "PRACTITIONER",
+                "about": "runs the kitchen or the floor of an independent restaurant and receives deliveries"
+              }
+            },
+            "founderPhrase": "whenever a shipment doesn't match the invoice"
+          },
+          {
+            "heading": "Most weeks",
+            "statement": "The gap between the last two mismatches was ten days or less.",
+            "risk": "LOAD_BEARING",
+            "mark": "DIRECT",
+            "expectation": {
+              "type": "INTERVAL",
+              "measure": {
+                "kind": "RATE",
+                "unit": "days",
+                "per": "gap"
+              },
+              "upper": {
+                "value": 10,
+                "inclusive": true,
+                "exact": true
+              }
+            },
+            "selection": "S2",
+            "role": {
+              "reuse": "Restaurant managers"
+            },
+            "founderPhrase": "most weeks"
+          },
+          {
+            "heading": "One to two hours each time",
+            "statement": "Sorting out the last mismatch took the manager one to two hours.",
+            "risk": "LOAD_BEARING",
+            "mark": "DIRECT",
+            "expectation": {
+              "type": "INTERVAL",
+              "measure": {
+                "kind": "DURATION",
+                "unit": "hours",
+                "per": "incident"
+              },
+              "lower": {
+                "value": 1,
+                "inclusive": true,
+                "exact": false
+              },
+              "upper": {
+                "value": 2,
+                "inclusive": true,
+                "exact": false
+              }
+            },
+            "selection": "S3",
+            "role": {
+              "reuse": "Restaurant managers"
+            },
+            "founderPhrase": "one to two hours"
+          },
+          {
+            "heading": "They recount by hand",
+            "statement": "The last mismatch was sorted out by recounting the stock by hand.",
+            "risk": "LOAD_BEARING",
+            "mark": "DIRECT",
+            "expectation": {
+              "type": "CHOICE",
+              "options": [
+                "recounted by hand",
+                "adjusted a spreadsheet",
+                "changed it in an inventory system",
+                "rang the supplier",
+                "let it go"
+              ],
+              "expected": "recounted by hand"
+            },
+            "selection": "S4",
+            "role": {
+              "reuse": "Restaurant managers"
+            },
+            "founderPhrase": "they recount by hand"
+          },
+          {
+            "heading": "They fix the spreadsheet manually",
+            "statement": "The last mismatch was sorted out by adjusting a spreadsheet by hand.",
+            "risk": "SUPPORTING",
+            "mark": "DIRECT",
+            "expectation": {
+              "type": "CHOICE",
+              "options": [
+                "recounted by hand",
+                "adjusted a spreadsheet",
+                "changed it in an inventory system",
+                "rang the supplier",
+                "let it go"
+              ],
+              "expected": "adjusted a spreadsheet"
+            },
+            "selection": "S4",
+            "role": {
+              "reuse": "Restaurant managers"
+            },
+            "founderPhrase": "adjust the spreadsheet manually"
+          },
+          {
+            "heading": "The manager does it personally",
+            "statement": "The manager did the recount themselves.",
+            "risk": "LOAD_BEARING",
+            "mark": "DIRECT",
+            "expectation": {
+              "type": "CHOICE",
+              "options": [
+                "I did",
+                "someone on my team",
+                "the supplier",
+                "nobody"
+              ],
+              "expected": "I did"
+            },
+            "selection": "S5",
+            "role": {
+              "reuse": "Restaurant managers"
+            },
+            "founderPhrase": "restaurant managers lose one to two hours"
+          },
+          {
+            "heading": "The workaround doesn't hold",
+            "statement": "After the fix, the recorded numbers did not stay right until the next delivery.",
+            "risk": "SUPPORTING",
+            "mark": "DIRECT",
+            "expectation": {
+              "type": "CHOICE",
+              "options": [
+                "yes",
+                "no"
+              ],
+              "expected": "no"
+            },
+            "selection": "S6",
+            "role": {
+              "reuse": "Restaurant managers"
+            },
+            "founderPhrase": "adjust the spreadsheet manually (the founder implies it doesn't hold)"
+          },
+          {
+            "heading": "Something goes wrong because of it",
+            "statement": "Something went wrong for the restaurant because of the last mismatch.",
+            "risk": "SUPPORTING",
+            "mark": "DIRECT",
+            "expectation": {
+              "type": "CHOICE",
+              "options": [
+                "yes",
+                "no"
+              ],
+              "expected": "yes"
+            },
+            "selection": "S7",
+            "role": {
+              "reuse": "Restaurant managers"
+            },
+            "founderPhrase": "not yet clear how much of that time is pure friction (a named unknown, given the standard pain proxy)"
+          }
+        ],
+        "questionnaire": {
+          "introduction": "Countly would like to ask you about something that happened recently. There are no right answers.",
+          "anchors": [
+            {
+              "id": "A1",
+              "prompt": "Think of the last delivery where what arrived didn't match the invoice. Tell us what happened, in a sentence or two.",
+              "selections": [
+                {
+                  "id": "S1",
+                  "prompt": "When was that?",
+                  "control": "BUCKETS",
+                  "escape": [
+                    "can't recall"
+                  ]
+                },
+                {
+                  "id": "S2",
+                  "prompt": "Before that one, when was the previous mismatch?",
+                  "control": "BUCKETS",
+                  "escape": [
+                    "can't recall"
+                  ]
+                },
+                {
+                  "id": "S3",
+                  "prompt": "How long did the recount and fixing the numbers take, that time?",
+                  "control": "BUCKETS",
+                  "escape": [
+                    "can't recall"
+                  ]
+                },
+                {
+                  "id": "S4",
+                  "prompt": "What did you do to sort it out? Pick all that apply.",
+                  "control": "OPTIONS",
+                  "multiSelect": true,
+                  "options": [
+                    "recounted by hand",
+                    "adjusted a spreadsheet",
+                    "changed it in an inventory system",
+                    "rang the supplier",
+                    "let it go"
+                  ],
+                  "other": true,
+                  "escape": [
+                    "it hasn't happened"
+                  ]
+                },
+                {
+                  "id": "S5",
+                  "prompt": "Who did the recount?",
+                  "control": "OPTIONS",
+                  "multiSelect": false,
+                  "options": [
+                    "I did",
+                    "someone on my team",
+                    "the supplier",
+                    "nobody"
+                  ],
+                  "escape": [
+                    "it hasn't happened"
+                  ]
+                },
+                {
+                  "id": "S6",
+                  "prompt": "After you'd fixed it, did the numbers stay right until the next delivery?",
+                  "control": "OPTIONS",
+                  "multiSelect": false,
+                  "options": [
+                    "yes",
+                    "no"
+                  ],
+                  "escape": [
+                    "didn't check"
+                  ]
+                },
+                {
+                  "id": "S7",
+                  "prompt": "Did anything go wrong for the restaurant because of the mismatch?",
+                  "control": "OPTIONS",
+                  "multiSelect": false,
+                  "options": [
+                    "yes",
+                    "no"
+                  ],
+                  "escape": [
+                    "can't say"
+                  ]
+                }
+              ],
+              "taps": [
+                "HASNT_HAPPENED",
+                "CANT_RECALL",
+                "RATHER_NOT_SAY"
+              ]
+            }
+          ]
+        },
+        "normalization_rationale": "Every line is measured against what the founder said, in the units this market uses. Taken verbatim from the frozen corpus entry 01-countly."
+      }
+    }
+  ],
+  "INTERPRET": [
+    {
+      "outcome": "COMPLETED",
+      "result": {
+        "anchorings": [
+          {
+            "stage": "PROBLEM",
+            "anchorId": "A1",
+            "anchoring": "ANCHORED"
+          }
+        ],
+        "unprompted": [],
+        "flags": []
+      }
+    },
+    {
+      "outcome": "COMPLETED",
+      "result": {
+        "anchorings": [
+          {
+            "stage": "PROBLEM",
+            "anchorId": "A1",
+            "anchoring": "GUESSED"
+          }
+        ],
+        "unprompted": [],
+        "flags": []
+      }
+    },
+    {
+      "outcome": "COMPLETED",
+      "result": {
+        "anchorings": [
+          {
+            "stage": "PROBLEM",
+            "anchorId": "A1",
+            "anchoring": "ANCHORED"
+          }
+        ],
+        "unprompted": [],
+        "flags": []
+      }
+    },
+    {
+      "outcome": "COMPLETED",
+      "result": {
+        "anchorings": [
+          {
+            "stage": "PROBLEM",
+            "anchorId": "A1",
+            "anchoring": "ANCHORED"
+          }
+        ],
+        "unprompted": [],
+        "flags": []
+      }
+    },
+    {
+      "outcome": "COMPLETED",
+      "result": {
+        "anchorings": [
+          {
+            "stage": "PROBLEM",
+            "anchorId": "A1",
+            "anchoring": "ANCHORED"
+          }
+        ],
+        "unprompted": [],
+        "flags": []
+      }
+    },
+    {
+      "outcome": "COMPLETED",
+      "result": {
+        "anchorings": [
+          {
+            "stage": "PROBLEM",
+            "anchorId": "A1",
+            "anchoring": "GUESSED"
+          }
+        ],
+        "unprompted": [],
+        "flags": []
+      }
+    },
+    {
+      "outcome": "COMPLETED",
+      "result": {
+        "anchorings": [
+          {
+            "stage": "PROBLEM",
+            "anchorId": "A1",
+            "anchoring": "ANCHORED"
+          }
+        ],
+        "unprompted": [],
+        "flags": []
+      }
+    },
+    {
+      "outcome": "COMPLETED",
+      "result": {
+        "anchorings": [
+          {
+            "stage": "PROBLEM",
+            "anchorId": "A1",
+            "anchoring": "ANCHORED"
+          }
+        ],
+        "unprompted": [],
+        "flags": []
+      }
+    },
+    {
+      "outcome": "COMPLETED",
+      "result": {
+        "anchorings": [
+          {
+            "stage": "PROBLEM",
+            "anchorId": "A1",
+            "anchoring": "ANCHORED"
+          }
+        ],
+        "unprompted": [],
+        "flags": []
+      }
+    },
+    {
+      "outcome": "COMPLETED",
+      "result": {
+        "anchorings": [
+          {
+            "stage": "PROBLEM",
+            "anchorId": "A1",
+            "anchoring": "ANCHORED"
+          }
+        ],
+        "unprompted": [],
+        "flags": []
+      }
+    },
+    {
+      "outcome": "COMPLETED",
+      "result": {
+        "anchorings": [
+          {
+            "stage": "PROBLEM",
+            "anchorId": "A1",
+            "anchoring": "ANCHORED"
+          }
+        ],
+        "unprompted": [],
+        "flags": []
+      }
+    }
+  ],
+  "BRIEF": [
+    {
+      "outcome": "COMPLETED",
+      "result": {
+        "whatThisSays": "This is a scripted reading of the corpus, not a live judgment. The problem claim was contradicted by what people reported. The solution claim came back mixed -- part of it held, part of it didn't. The commercial claim held up against what people reported."
+      }
+    }
+  ]
+}

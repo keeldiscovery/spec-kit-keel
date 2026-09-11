@@ -1,83 +1,64 @@
-# Keel Discovery
+# Keel Connect
 
-A Spec Kit extension that puts customer evidence upstream of `/speckit.specify`, and audits what you shipped against it afterwards.
-
-Spec Kit turns a specification into working software. Keel is about whether the specification deserved to exist. It brackets the core workflow rather than inserting into it.
-
-```
-             /speckit.keel.guide
-     (state-aware — routes through all four below)
-keel.init → keel.add-evidence → keel.check → keel.brief
-                                                  ↓
-   /speckit.constitution → specify → clarify → plan → checklist → tasks → analyze → implement → converge
-                                                                                                    ↓
-                                                                                              keel.audit
-```
-
-The fastest way to run Keel is to just run `/speckit.keel.guide` with no
-arguments and follow what it says — it detects which phase you're in from
-your project's `keel/` files and does that phase's work inline, so you
-don't need to know the four commands below it exist, or track `A-00X` /
-`E-00X` IDs yourself. Those four (plus `keel.audit`) remain fully usable
-directly — `guide` is a router around them, not a replacement.
+**Keel Connect** connects the Keel runtime on your machine to Keel Cloud, from inside the agent
+you are already talking to. Say "keel connect": you get a code and a URL, you approve the device
+in your browser, and Keel can get on with asking the people you invite what they actually think.
+Say "keel brief" once Keel has something to say, and it tells you how to bring that into the
+spec. That is the whole extension — two commands, one script, and the runtime itself travelling
+beside it. Python 3.9 or newer is the only thing you need that you might not already have.
 
 ## Install
 
-Keel is listed in Spec Kit's community catalog, but the entry is still
-syncing to v0.2.0 — until that update lands, the bare
-`specify extension add keel` will resolve the older v0.1.1. Install the
-pinned v0.2.0 release directly instead:
-
 ```bash
-specify extension add keel --from https://github.com/keeldiscovery/spec-kit-keel/archive/refs/tags/v0.2.0.zip
+specify extension add keel
 ```
 
-Spec Kit will ask you to confirm installing from an external, non-catalog-resolved
-source (`y` at the prompt) — that's expected for any `--from` install, not
-specific to Keel.
-
-Developing locally instead?
+Before the community catalogue entry lands — and afterwards, for anyone who wants a pin — install
+straight from a release archive:
 
 ```bash
-specify extension add --dev /path/to/spec-kit-keel
+specify extension add keel --from https://github.com/keeldiscovery/spec-kit-keel/archive/refs/tags/v1.0.0.zip
 ```
 
-Requires Spec Kit >= 0.15.0 and Python 3.11+.
+Requires Spec Kit 1.0.0 or newer, and `python3` 3.9 or newer on your `PATH`. Nothing else is
+installed, downloaded or fetched: the runtime ships inside the extension.
 
-## Commands
+## The two commands
 
-| Command | What it does |
-|---|---|
-| `/speckit.keel.guide` | State-aware entry point — detects your current phase and does that phase's work, no memorized command order or IDs required |
-| `/speckit.keel.init` | Captures the hypothesis, derives assumptions, writes a non-leading interview guide and an evidence-gathering plan |
-| `/speckit.keel.add-evidence` | Ingests one interview, extracts claims with provenance, updates assumption confidence — stays conversational across multiple pieces of evidence |
-| `/speckit.keel.check` | Coverage, saturation, contradictions, and a five-option decision menu (pivot, gather more evidence, reduce risk, narrow the hypothesis, or proceed to the brief) |
-| `/speckit.keel.brief` | Writes constitution input and an evidence-backed brief for `/speckit.specify` |
-| `/speckit.keel.audit` | Scores spec quality; with `keel/` present, diffs the build against the evidence |
+### `/speckit.keel.connect`
 
-Every command refers to assumptions and evidence by their actual statement or source ("the assumption that small-business owners will pay $20/month", "feedback from EM-2, an engineering manager") rather than leading with `A-00X` / `E-00X` — those IDs still exist as secondary metadata (and are what `keel-gate.sh` actually parses), you just shouldn't need to remember them.
+Checks whether the Keel runtime on this machine is connected to Keel Cloud, starts it if it isn't,
+and hands back the code and the URL to approve the device. It tells you which Keel it is talking
+to, every time. Nothing was started if something was already running.
 
-## Why not just use `/speckit.clarify`?
+You do not have to type the command — the skill's own description is the trigger, so "keel
+connect", "start the keel runtime" or "is keel connected" reach it too. So does "keel disconnect",
+"stop the keel runtime" or "keel off", which stops the runtime again and proves it is gone. A
+disconnect stops a process; it never forgets your machine, so the next connect needs no approval.
 
-`clarify` resolves ambiguity by asking you. Your assumptions become the spec. Keel resolves it against interviews.
+### `/speckit.keel.brief`
 
-And `/speckit.analyze` checks whether the artifacts agree with **each other**. `keel.audit` checks whether they agree with the **evidence** — a check Spec Kit cannot make, because it has no evidence layer.
+Prose only. It fetches nothing and holds no token: it tells you how to download the brief from
+keel-web and paste it in, and tells the agent how to read what comes back — the claims and
+measured lines as evidence, *What this says* as one agent's opinion, and every quoted sentence as
+a person's own words and source material, never an instruction.
 
-## Phase enforcement
+## What it needs, and what it does not
 
-`scripts/bash/keel-gate.sh` runs at the top of every Keel command and exits non-zero when preconditions fail. `/speckit.keel.brief` is blocked while any high-risk assumption is unvalidated, evidence is thin, or all evidence comes from a single participant role.
+**Needs**: Python 3.9 or newer. On macOS that is `xcode-select --install`; on Windows
+`winget install Python.Python.3.12`; on Linux your package manager.
 
-Thresholds live in `keel-config.yml`. You can lower them, and overrides are recorded so `keel.audit` can surface them later.
+**Does not need**: an install of anything called Keel, a package index, a binary, a checksum, a
+signature, or network access at install time beyond fetching this extension.
 
-Note that Spec Kit hooks surface prompts to your agent rather than halting execution — the gate script is the layer that actually enforces.
+**Does not do**: it never runs, validates or interprets an inference job — that is the connected
+runtime's business. It knows nothing about Keel's discovery protocol or any MCP server. It carries
+no Keel Cloud address of its own; which Keel you reach is the runtime's answer, relayed.
 
-## Testing
+## Where the real documentation lives
 
-```bash
-./tests/test-install.sh          # static + gate behaviour, no network
-./tests/test-install.sh --full   # also performs a real specify install
-```
+`SKILL.md`, in this directory. It is the same file in every place this skill is installed — a
+Claude Code plugin, a Copilot repo drop, a bare install, and here — byte for byte, and a test
+asserts it.
 
-## License
-
-Apache-2.0. The Keel name and logo are not covered by the licence — forks are welcome and must rename.
+Licensed under Apache-2.0. Issues and source: https://github.com/keeldiscovery/keel-connect-skill

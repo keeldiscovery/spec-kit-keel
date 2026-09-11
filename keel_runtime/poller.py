@@ -80,6 +80,10 @@ def run_loop(client: CloudClient, state, executor: Executor, store, config):
                 if answer.get("type") == "NO_WORK":
                     _write_heartbeat(state, config)
                     continue
+                # spec `007-launcher-version`: the heartbeat names the job for as long as it is
+                # being worked, so a newer skill's "keel connect" waits rather than replacing a
+                # runtime mid-job; the write after the job clears it again.
+                _write_heartbeat(state, config, job_id=answer["job"]["job_id"])
                 _handle_job(client, state, executor, answer["job"], config)
                 _write_heartbeat(state, config)
             except AgentSessionSuperseded:
@@ -109,10 +113,10 @@ def _prune_job_dirs(home, keep: int = JOB_DIR_RETENTION) -> None:
         shutil.rmtree(stale, ignore_errors=True)
 
 
-def _write_heartbeat(state, config) -> None:
+def _write_heartbeat(state, config, job_id=None) -> None:
     # spec 021 FR-001: written after every poll cycle -- NO_WORK and a delivered job
     # alike -- so a runtime that is merely idle still reads as alive, not only one that
-    # just completed a job.
+    # just completed a job. `job_id` names the job in hand (spec 007), `None` when idle.
     heartbeat_module.write(
         config.home,
         heartbeat_module.Heartbeat(
@@ -120,6 +124,8 @@ def _write_heartbeat(state, config) -> None:
             agent_session_id=state.agent_session_id,
             base_url=config.base_url,
             last_heartbeat_at=heartbeat_module.now_iso8601(),
+            launcher_version=getattr(config, "launcher_version", None),
+            job_id=job_id,
         ),
     )
 

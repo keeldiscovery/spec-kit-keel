@@ -42,6 +42,14 @@ class Heartbeat:
     base_url: str
     last_heartbeat_at: str
     state: str = STATE_CONNECTED
+    # spec `007-launcher-version` (keel-cloud `canon/designs/upgrade-in-place-design.md`): the
+    # version of the skill that launched this process, as it told us (`connect
+    # --launcher-version`), so a newer skill can tell an older running runtime from its own; and
+    # the job this process is working on right now, so that skill never replaces a runtime
+    # mid-job. Both absent from any heartbeat written before this spec, which `read` treats as
+    # "unknown launcher, idle" -- the shape an older runtime would have reported had it known to.
+    launcher_version: Optional[str] = None
+    job_id: Optional[str] = None
 
 
 def path(home: Path) -> Path:
@@ -59,7 +67,8 @@ def write(home: Path, heartbeat: Heartbeat) -> None:
     os.replace(tmp_path, target)
 
 
-def write_awaiting_approval(home: Path, pid: int, base_url: str) -> None:
+def write_awaiting_approval(home: Path, pid: int, base_url: str,
+                            launcher_version: Optional[str] = None) -> None:
     """Written the moment `connect` has a pid and a home -- before the device code is even
     requested, let alone redeemed (keel-cloud DRIFT #51: a runtime alive and waiting for device
     approval was invisible to both `status` and `disconnect`, because the only heartbeat write
@@ -83,6 +92,7 @@ def write_awaiting_approval(home: Path, pid: int, base_url: str) -> None:
             base_url=base_url,
             last_heartbeat_at=now_iso8601(),
             state=STATE_AWAITING_APPROVAL,
+            launcher_version=launcher_version,
         ),
     )
 
@@ -116,6 +126,10 @@ def read(home: Path) -> Optional[Heartbeat]:
             base_url=str(data["base_url"]),
             last_heartbeat_at=str(data["last_heartbeat_at"]),
             state=str(raw_state) if raw_state is not None else STATE_CONNECTED,
+            launcher_version=(
+                None if data.get("launcher_version") is None else str(data["launcher_version"])
+            ),
+            job_id=None if data.get("job_id") is None else str(data["job_id"]),
         )
     except (TypeError, ValueError):
         return None

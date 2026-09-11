@@ -214,6 +214,48 @@ def executor_for(args, environ=None):
     return HOST_EXECUTORS.get(host)
 
 
+# --------------------------------------------------------------------------- the bundle's version
+
+
+def bundle_version():
+    """The version of the skill this script travels in: the `VERSION` file at the skill's root,
+    one number for every packaging (design D7). `None` when the file is not there -- a tree copied
+    by hand, or a test's relocated copy -- in which case no upgrade is ever attempted, because a
+    skill that cannot name its own version cannot claim to be newer than anything.
+    """
+    root = _runtime_location.skill_root()
+    try:
+        with open(os.path.join(root, "VERSION"), encoding="utf-8") as handle:
+            text = handle.read().strip()
+    except OSError:
+        return None
+    return text or None
+
+
+def _semver(text):
+    """`(major, minor, patch)` for a bare semver string, else `None`. Anything that is not three
+    integers joined by dots -- a `null`, a sha suffix, a word -- is `None`, and `None` compares as
+    older than any number: a runtime that could not say who launched it predates the launchers
+    that can (keel-runtime spec 007)."""
+    if not isinstance(text, str):
+        return None
+    parts = text.strip().split(".")
+    if len(parts) != 3 or not all(part.isdigit() for part in parts):
+        return None
+    return tuple(int(part) for part in parts)
+
+
+def bundle_is_newer_than(running_version):
+    """Whether this skill's own version is strictly newer than the version that launched the
+    running runtime (keel-cloud `canon/designs/upgrade-in-place-design.md` §3). An unknown
+    running version counts as older; an unknown bundle version never counts as newer."""
+    mine = _semver(bundle_version())
+    if mine is None:
+        return False
+    theirs = _semver(running_version)
+    return theirs is None or theirs < mine
+
+
 # ------------------------------------------------------------------------------------ status check
 
 
@@ -281,6 +323,11 @@ def launch_connect(location, log_home, args, executor):
         argv += ["--credential-backend", args.credential_backend]
     if args.no_browser:
         argv += ["--no-browser"]
+    # keel-runtime spec 007: the runtime records who launched it, so a newer skill can tell an
+    # older running runtime from its own (design upgrade-in-place §3).
+    version = bundle_version()
+    if version:
+        argv += ["--launcher-version", version]
 
     popen_kwargs = {}
     if os.name == "posix":
@@ -445,6 +492,37 @@ def _internal_error(message, environment=None):
                   "environment": environment}, 1)
 
 
+# ------------------------------------------------------------------------- upgrade in place (005)
+
+
+def _upgrade_in_place(location, log_home, given_home, args, running_version, environment):
+    """Stops the older running runtime through the runtime's own `disconnect` (the goodbye, the
+    process, the proof it is gone -- keel-runtime spec 003, as `keel_disconnect.py` already
+    drives it), then launches this bundle's `connect`, which reconnects on the saved credential.
+    One outcome, `upgraded`, carrying what the relaunch then said (`then`) and its keys."""
+    import keel_disconnect  # a sibling in scripts/; imported here so a status-only run never loads it
+    data, reason = keel_disconnect.run_disconnect(location, given_home)
+    if data is None:
+        return _internal_error("could not stop the older runtime before replacing it: %s" % reason,
+                               environment)
+    if data.get("outcome") not in ("stopped", "not_running", "stale_pid_cleared"):
+        return _internal_error("the older runtime did not stop (its disconnect answered %r), so it "
+                               "was not replaced" % data.get("outcome"), environment)
+    try:
+        pid, log_path = launch_connect(location, log_home, args, executor_for(args))
+    except OSError as exc:
+        return _internal_error("stopped the older runtime but failed to launch the new one: %s"
+                               % exc, environment)
+    then = await_launch_signal(log_path, args.wait_seconds)
+    outcome = {"outcome": "upgraded", "then": then.pop("outcome"),
+               "previous_version": running_version, "bundle_version": bundle_version()}
+    outcome.update(then)
+    outcome["pid"] = pid
+    outcome["log_file"] = log_path
+    outcome["environment"] = environment
+    return _emit(outcome, 0)
+
+
 # -------------------------------------------------------------------------------------------- main
 
 
@@ -476,12 +554,31 @@ def main(argv=None):
 
     if status_result.get("running") is True:
         if status_result.get("connected") is True:
+            running_version = status_result.get("launcher_version")
+            # Upgrade in place (keel-cloud `canon/designs/upgrade-in-place-design.md`; the
+            # founder, 2026-09-11): a running runtime is replaced by this bundle's only when the
+            # bundle is strictly newer AND the runtime is idle. Same or newer running: nothing
+            # happens, as before. Busy: the founder is told to ask again in a minute; a job is
+            # never cancelled behind their back.
+            if bundle_is_newer_than(running_version):
+                if status_result.get("busy") is True:
+                    return _emit({
+                        "outcome": "upgrade_waiting",
+                        "running_version": running_version,
+                        "bundle_version": bundle_version(),
+                        "agent_session_id": status_result.get("agent_session_id"),
+                        "environment": environment,
+                    }, 0)
+                return _upgrade_in_place(location, log_home, given_home, args, running_version,
+                                         environment)
             # `base_url` is gone from this shape and `environment` replaces it: one key for
-            # *which Keel*, never two (design §7).
+            # *which Keel*, never two (design §7). `launcher_version` names who launched the
+            # running runtime, `null` when it could not say (spec 005).
             return _emit({
                 "outcome": "already_connected",
                 "agent_session_id": status_result.get("agent_session_id"),
                 "last_heartbeat_at": status_result.get("last_heartbeat_at"),
+                "launcher_version": running_version,
                 "environment": environment,
             }, 0)
         # Running, but not yet connected: a `connect` is alive and pid-checkable but still

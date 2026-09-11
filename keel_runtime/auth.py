@@ -56,7 +56,8 @@ def authorize_device(client: CloudClient, config) -> Credential:
         # change -- this is an accelerator against staleness, not a requirement (mirrors G5's
         # posture for the goodbye).
         if home is not None:
-            heartbeat_module.write_awaiting_approval(home, pid, config.base_url)
+            heartbeat_module.write_awaiting_approval(home, pid, config.base_url,
+                                                     launcher_version=config.launcher_version)
 
     while True:
         try:

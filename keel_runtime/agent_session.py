@@ -32,6 +32,7 @@ def create_agent_session(client: CloudClient, credential: Credential, config) ->
             agent_session_id=agent_session_id,
             base_url=config.base_url,
             last_heartbeat_at=heartbeat_module.now_iso8601(),
+            launcher_version=getattr(config, "launcher_version", None),
         ),
     )
     return RuntimeState(agent_session_id=agent_session_id, access_token=credential.access_token)

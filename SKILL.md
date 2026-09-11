@@ -60,7 +60,7 @@ manager, e.g. `sudo apt install python3`. Then ask them to say "keel connect" ag
 
 ## Interpreting each outcome
 
-The script prints exactly one line of JSON with an `outcome` key. Match it against the seven values
+The script prints exactly one line of JSON with an `outcome` key. Match it against the nine values
 below and reply in plain language -- **never show the raw JSON**.
 
 Every outcome also carries `environment`: which Keel this is. **End your reply with one clause
@@ -68,9 +68,24 @@ naming it** -- "on Keel Cloud", or "on `localhost:18081`" written exactly as giv
 `null` no runtime answered, so say nothing about which Keel; do not guess one.
 
 **`already_connected`** -- a runtime is already running **and has completed device approval**.
-Nothing was started.
+Nothing was started. `launcher_version` names the skill version that started it (`null` when it
+could not say); it is the same as this skill's, or newer.
 > Tell the user Keel is already connected. You may mention the `agent_session_id` as context, but
 > it is rarely something a human needs to see.
+
+**`upgraded`** -- an older runtime was running, idle; it has been stopped and this skill's newer
+runtime started in its place. `previous_version` and `bundle_version` say which. `then` says what
+the fresh start did -- `connected` (reconnected on the saved credential, the usual case),
+`authorization_started` (with `user_code` and `verification_uri`), or
+`authorization_pending_timeout` -- and the keys of that outcome are on this one.
+> Say, in one sentence, that an older runtime was replaced by the new version and, following the
+> `then` value, what happened next -- usually "and you are still connected". Then treat the rest
+> exactly as the `then` outcome asks: relay a code verbatim if there is one.
+
+**`upgrade_waiting`** -- an older runtime is running **and working on a job right now**, so it was
+left alone. Nothing was stopped or started.
+> Tell the user an older runtime (`running_version`) is finishing a job, and that saying "keel
+> connect" again in a minute will replace it with `bundle_version`. Never offer to stop it now.
 
 **`connected`** -- nothing was running, so the check started the runtime, and it connected
 immediately using a saved credential from a previous session -- no approval was needed.

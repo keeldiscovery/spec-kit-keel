@@ -5,7 +5,7 @@
 # installed (design §3.2), so `importlib.metadata.version("keel-runtime")` would raise for exactly
 # the founder this design exists for. `pyproject.toml`'s `version` mirrors this constant and a
 # test asserts they agree.
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 # The identifier the design's own packaging declares for the tree that carries this runtime
 # (design §8.4's Spec Kit manifest), and the SPDX id of the `LICENSE` file at the repository

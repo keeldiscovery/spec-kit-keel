@@ -136,6 +136,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     connect.add_argument("--home", dest="home", help="overrides KEEL_HOME for this run")
     connect.add_argument(
+        "--launcher-version",
+        dest="launcher_version",
+        help="the version of the skill (or other launcher) starting this runtime, recorded in "
+             "the heartbeat and reported by `status` as launcher_version (spec 007); "
+             "KEEL_LAUNCHER_VERSION is the environment form",
+    )
+    connect.add_argument(
         "--credential-backend",
         dest="credential_backend",
         choices=["auto", "file", "keyring"],
@@ -280,7 +287,8 @@ def _run_connect(args) -> int:
     # with the real heartbeat the moment an agent session exists, by `create_agent_session`
     # (stored-credential path) or by `auth.authorize_device`'s own per-tick refresh followed by
     # `create_agent_session` (fresh device authorization).
-    heartbeat_module.write_awaiting_approval(config.home, os.getpid(), config.base_url)
+    heartbeat_module.write_awaiting_approval(config.home, os.getpid(), config.base_url,
+                                             launcher_version=config.launcher_version)
 
     if config.script_path and config.executor != "scripted":
         print(
@@ -491,6 +499,11 @@ def _run_status(args) -> int:
             "base_url": hb.base_url,
             "last_heartbeat_at": hb.last_heartbeat_at,
             "connected": hb.state != heartbeat_module.STATE_AWAITING_APPROVAL,
+            # spec `007-launcher-version`: who launched it (null for a runtime that was not
+            # told), and whether it is working on a job right now -- the two facts a newer
+            # skill needs before it may replace this process.
+            "launcher_version": hb.launcher_version,
+            "busy": hb.job_id is not None,
         }
 
     result.update(_environment_keys(status_config, hb))

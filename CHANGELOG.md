@@ -3,6 +3,14 @@
 All notable changes to this extension are documented here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.0.0]
+
+Upgrades in place. "keel connect" now replaces a runtime that an older version of this extension
+started, as long as it is idle -- and says so. A runtime working on a job is left to finish, and
+the next "keel connect" replaces it. A runtime started by a newer version is never downgraded.
+The outcome contract gains two shapes (`upgraded`, `upgrade_waiting`), which is what makes this a
+major version. The runtime inside is keel-runtime 0.2.0, which records who launched it.
+
 ## [1.0.0]
 
 Keel Discovery becomes Keel Connect, and replaces 0.2.0 outright.

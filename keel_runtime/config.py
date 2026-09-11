@@ -107,6 +107,7 @@ ENV_SCRIPT = "KEEL_SCRIPT"
 # `$KEEL_HOME/config.json` precedence; falling back to the copy bundled in
 # `keel_runtime/testing/contracts/` when nothing sets it.
 ENV_CONTEXT_KEYS = "KEEL_CONTEXT_KEYS"
+ENV_LAUNCHER_VERSION = "KEEL_LAUNCHER_VERSION"
 
 # spec 021 FR-006: a runtime that is merely waiting on a slow long-poll must never be
 # mistaken for dead -- the default is one full poll cycle's worst case (the long-poll
@@ -159,6 +160,10 @@ class RuntimeConfig:
     # path pins, `None` when nothing pinned one (C-5).
     executor_source: str = "default"
     copilot_model: Optional[str] = None
+    # spec `007-launcher-version`: what launched this runtime, when the launcher said
+    # (`--launcher-version` / `KEEL_LAUNCHER_VERSION`); `None` when nothing did. Written into
+    # every heartbeat so `status` can report it and a newer skill can compare.
+    launcher_version: Optional[str] = None
 
     @property
     def environment(self) -> Optional[str]:
@@ -625,4 +630,6 @@ def load(args) -> RuntimeConfig:
         job_timeout_seconds=job_timeout_seconds,
         executor_source=executor_source,
         copilot_model=copilot_model,
+        launcher_version=(getattr(args, "launcher_version", None)
+                          or os.environ.get(ENV_LAUNCHER_VERSION) or None),
     )

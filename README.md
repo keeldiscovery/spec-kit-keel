@@ -17,7 +17,7 @@ Before the community catalogue entry lands — and afterwards, for anyone who wa
 straight from a release archive:
 
 ```bash
-specify extension add keel --from https://github.com/keeldiscovery/spec-kit-keel/archive/refs/tags/v1.0.0.zip
+specify extension add keel --from https://github.com/keeldiscovery/spec-kit-keel/archive/refs/tags/v2.3.1.zip
 ```
 
 Requires Spec Kit 1.0.0 or newer, and `python3` 3.9 or newer on your `PATH`. Nothing else is

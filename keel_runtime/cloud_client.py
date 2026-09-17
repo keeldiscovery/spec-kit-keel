@@ -109,19 +109,30 @@ class CloudClient:
             timeout=self.poll_window_seconds + POLL_TIMEOUT_MARGIN_SECONDS,
         )
 
-    def complete_job(self, job_id: str, access_token: str, response: dict) -> dict:
+    def complete_job(self, job_id: str, access_token: str, response: dict,
+                     execution: dict = None) -> dict:
+        # spec 009: `execution` -- `{host, host_version, model_requested, model_used,
+        # retried_unpinned}` -- is optional and additive (design §6); omitted when the executor
+        # has no host to report, so a scripted run's body is byte-identical to before.
+        body = {"response": response}
+        if execution is not None:
+            body["execution"] = execution
         return self._request(
             "POST",
             f"/v2/inference-jobs/{job_id}/complete",
-            body={"response": response},
+            body=body,
             access_token=access_token,
         )
 
-    def fail_job(self, job_id: str, access_token: str, code: str, message: str) -> dict:
+    def fail_job(self, job_id: str, access_token: str, code: str, message: str,
+                 execution: dict = None) -> dict:
+        body = {"error_code": code, "error_message": message}
+        if execution is not None:
+            body["execution"] = execution
         return self._request(
             "POST",
             f"/v2/inference-jobs/{job_id}/fail",
-            body={"error_code": code, "error_message": message},
+            body=body,
             access_token=access_token,
         )
 

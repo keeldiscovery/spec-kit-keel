@@ -57,7 +57,7 @@ DEFAULT_EXECUTOR = "claude"
 
 # Which CLI each named executor needs on `PATH`. `scripted` and `stub` run in this process and
 # need none.
-EXECUTOR_BINARIES = {"claude": "claude", "claude-code": "claude", "copilot": "copilot"}
+EXECUTOR_BINARIES = {"claude": "claude", "claude-code": "claude", "copilot": "copilot", "codex": "codex"}
 IN_PROCESS_EXECUTORS = frozenset({"scripted", "stub"})
 
 # The alias, resolved in one place, so `status`, the `KEEL_EXECUTOR=` line and `get_executor`
@@ -87,12 +87,19 @@ ENV_HOST_MARKERS = (
     "COPILOT_CLI",
     "CLAUDECODE",
     "AI_AGENT",
+    # Codex (spec 008, measured 2026-09-12 against codex-cli 0.154.0): a command Codex runs sees
+    # `CODEX_THREAD_ID` and `CODEX_SESSION_ID` (the same value), `CODEX_VERSION`, `CODEX_SANDBOX`
+    # and `CODEX_CI=1`. Codex sets no `AI_AGENT` of its own -- the one measured was inherited
+    # from the Claude Code session the measurement ran inside, which is exactly the "two answers"
+    # case below.
+    "CODEX_THREAD_ID",
+    "CODEX_SESSION_ID",
 )
 
-# spec 005 / C-5: the `--model` slug the Copilot path pins. Empty by default -- see
-# `CopilotExecutor.__init__` for why a constant here would be wrong.
-ENV_COPILOT_MODEL = "KEEL_COPILOT_MODEL"
-DEFAULT_COPILOT_MODEL = ""
+# spec 009-model-routing: there is no model knob here. The model a job runs on comes with the
+# job (`request_payload["model"][<host>]`, keel-cloud `canon/designs/model-routing-design.md`
+# §6) and from nowhere else; the 0.4.0 `--<host>-model` flags, `KEEL_<HOST>_MODEL` variables
+# and `<host>_model` config keys were removed in 0.5.0.
 
 # Env var names (spec FR-026): "flags > env (KEEL_BASE_URL, KEEL_EXECUTOR, KEEL_HOME,
 # KEEL_CREDENTIAL_BACKEND) > $KEEL_HOME/config.json".
@@ -158,10 +165,8 @@ class RuntimeConfig:
     job_max_turns: int
     job_timeout_seconds: float
     # spec `005-copilot-executor`: **why** this executor was chosen, one of `EXECUTOR_SOURCES`,
-    # printed on the `KEEL_EXECUTOR=` startup line (C-9); and the `--model` slug the Copilot
-    # path pins, `None` when nothing pinned one (C-5).
+    # printed on the `KEEL_EXECUTOR=` startup line (C-9).
     executor_source: str = "default"
-    copilot_model: Optional[str] = None
     # spec `007-launcher-version`: what launched this runtime, when the launcher said
     # (`--launcher-version` / `KEEL_LAUNCHER_VERSION`); `None` when nothing did. Written into
     # every heartbeat so `status` can report it and a newer skill can compare.
@@ -215,6 +220,8 @@ def host_from_environment(environ=None):
         answers.add("copilot")
     if (environ.get("CLAUDECODE") or "").strip() == "1":
         answers.add("claude")
+    if (environ.get("CODEX_THREAD_ID") or "").strip() or (environ.get("CODEX_SESSION_ID") or "").strip():
+        answers.add("codex")
 
     ai_agent = (environ.get("AI_AGENT") or "").strip().lower()
     if ai_agent.startswith("github_copilot"):
@@ -254,9 +261,9 @@ def resolve_executor(args, file_config=None, environ=None):
                   -> that one, always, even if its CLI is missing (it reports per job)
     2  host:      --host, then the environment this process was launched into
                   -> exactly one answer, take it; two different answers, take NEITHER
-    3  PATH:      exactly one of `copilot` / `claude` on PATH  -> that one
-    4  both on PATH and nothing above decided  -> claude, and say so
-    5  neither on PATH -> claude, and the caller prints KEEL_EXECUTOR_UNAVAILABLE
+    3  PATH:      exactly one of `claude` / `copilot` / `codex` on PATH  -> that one
+    4  two or more on PATH and nothing above decided  -> claude, and say so
+    5  none on PATH -> claude, and the caller prints KEEL_EXECUTOR_UNAVAILABLE
     ```
 
     Step 1 wins **even if its CLI is missing**: a founder who names an executor is answering the
@@ -288,28 +295,14 @@ def resolve_executor(args, file_config=None, environ=None):
     if host is not None:
         return host, "host"
 
-    claude_present = _on_path("claude")
-    copilot_present = _on_path("copilot")
-    if claude_present and not copilot_present:
-        return "claude", "path"
-    if copilot_present and not claude_present:
-        return "copilot", "path"
-    if claude_present and copilot_present:
+    # Step 3, for three CLIs (spec 008): exactly one on PATH is the answer; two or more and
+    # nothing above decided is step 4's `claude`, said out loud.
+    present = [name for name in ("claude", "copilot", "codex") if _on_path(name)]
+    if len(present) == 1:
+        return present[0], "path"
+    if len(present) > 1:
         return DEFAULT_EXECUTOR, "ambiguous-path"
     return DEFAULT_EXECUTOR, "default"
-
-
-def resolve_copilot_model(args, file_config=None, environ=None):
-    """`--copilot-model` > `KEEL_COPILOT_MODEL` > `config.json["copilot_model"]` > unpinned."""
-    file_config = file_config or {}
-    environ = os.environ if environ is None else environ
-    value = (
-        getattr(args, "copilot_model", None)
-        or environ.get(ENV_COPILOT_MODEL)
-        or file_config.get("copilot_model")
-        or DEFAULT_COPILOT_MODEL
-    )
-    return value or None
 
 
 def _default_home_root() -> Path:
@@ -585,7 +578,6 @@ def load(args) -> RuntimeConfig:
         )
 
     executor, executor_source = resolve_executor(args, file_config)
-    copilot_model = resolve_copilot_model(args, file_config)
 
     credential_backend = (
         getattr(args, "credential_backend", None)
@@ -631,7 +623,6 @@ def load(args) -> RuntimeConfig:
         job_max_turns=job_max_turns,
         job_timeout_seconds=job_timeout_seconds,
         executor_source=executor_source,
-        copilot_model=copilot_model,
         launcher_version=(getattr(args, "launcher_version", None)
                           or os.environ.get(ENV_LAUNCHER_VERSION) or None),
     )

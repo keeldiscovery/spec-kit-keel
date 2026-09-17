@@ -24,6 +24,14 @@ for the scripted and stub executors, which have neither. A `/fail` message is al
 exception messages are the CLI's stderr or the envelope's own error text, not
 `structured_output`). Job directories under `$KEEL_HOME/jobs/` are pruned to the newest
 50 once, at the start of `run_loop`.
+
+spec 009-model-routing (keel-cloud `canon/designs/model-routing-design.md` §5/§6): the job's
+`request_payload["model"]` is a per-host map; `_model_for` reads the entry for the executor's own
+`host_key` and hands it to the executor on the request -- the one rule, no other source. After
+the job, `_execution_report` reads the executor's five report attributes into the `execution`
+object `/complete` and `/fail` carry (and `execution.json` beside the other job logs), so the
+cloud learns which host answered, on which model, and whether the named one was refused. A
+executor without a `host_key` (scripted, stub) carries no report and the bodies are unchanged.
 """
 from __future__ import annotations
 
@@ -130,6 +138,36 @@ def _write_heartbeat(state, config, job_id=None) -> None:
     )
 
 
+def _model_for(executor: Executor, request_payload: dict):
+    """`request_payload["model"][<host_key>]` when it is a non-empty string; otherwise `None`.
+    A payload without the key (an older cloud), a map without this host's entry (an unmeasured
+    host, an absent tier), or anything that is not a string all mean the same thing: no flag."""
+    host = getattr(executor, "host_key", None)
+    if not host:
+        return None
+    models = request_payload.get("model") if isinstance(request_payload, dict) else None
+    if not isinstance(models, dict):
+        return None
+    model = models.get(host)
+    if isinstance(model, str) and model.strip():
+        return model.strip()
+    return None
+
+
+def _execution_report(executor: Executor):
+    """The `execution` object for `/complete` and `/fail`; `None` for an executor with no host."""
+    host = getattr(executor, "host_key", None)
+    if not host:
+        return None
+    return {
+        "host": host,
+        "host_version": getattr(executor, "host_version", None),
+        "model_requested": getattr(executor, "last_model_requested", None),
+        "model_used": getattr(executor, "last_model_used", None),
+        "retried_unpinned": bool(getattr(executor, "last_retried_unpinned", False)),
+    }
+
+
 def _write_job_logs(config, executor: Executor, job_id: str) -> None:
     # spec FR-005, extended by FR-010 (amendment): written for whichever executor
     # exposes them -- ClaudeCodeExecutor does, the scripted and stub executors don't,
@@ -153,6 +191,9 @@ def _write_job_logs(config, executor: Executor, job_id: str) -> None:
         if lines:
             content += "\n"
         (job_dir / "events.jsonl").write_text(content)
+    execution = _execution_report(executor)
+    if execution is not None:
+        (job_dir / "execution.json").write_text(json.dumps(execution, indent=2))
 
 
 def _handle_job(client: CloudClient, state, executor: Executor, job: dict, config) -> None:
@@ -161,6 +202,7 @@ def _handle_job(client: CloudClient, state, executor: Executor, job: dict, confi
         interaction_id=job["interaction_id"],
         turn_number=job["turn_number"],
         request_payload=job["request_payload"],
+        model=_model_for(executor, job["request_payload"]),
     )
 
     try:
@@ -168,46 +210,55 @@ def _handle_job(client: CloudClient, state, executor: Executor, job: dict, confi
         validate_response(response, job["request_payload"]["response_contract"])
     except ExecutorUnavailable as exc:
         _write_job_logs(config, executor, job["job_id"])
-        _fail(client, state, job["job_id"], "LLM_UNAVAILABLE", str(exc))
+        _fail(client, state, job["job_id"], "LLM_UNAVAILABLE", str(exc), executor)
         return
     except ExecutorAuthFailure as exc:
         _write_job_logs(config, executor, job["job_id"])
-        _fail(client, state, job["job_id"], "EXECUTOR_AUTH_FAILED", str(exc))
+        _fail(client, state, job["job_id"], "EXECUTOR_AUTH_FAILED", str(exc), executor)
         return
     except ExecutorTimeout as exc:
         _write_job_logs(config, executor, job["job_id"])
-        _fail(client, state, job["job_id"], "EXECUTOR_TIMEOUT", str(exc))
+        _fail(client, state, job["job_id"], "EXECUTOR_TIMEOUT", str(exc), executor)
         return
     except InvalidResponse as exc:
         _write_job_logs(config, executor, job["job_id"])
-        _fail(client, state, job["job_id"], "INVALID_LLM_RESPONSE", str(exc))
+        _fail(client, state, job["job_id"], "INVALID_LLM_RESPONSE", str(exc), executor)
         return
     except Exception as exc:  # noqa: BLE001 -- anything else maps to INTERNAL_ERROR (FR-027)
         _write_job_logs(config, executor, job["job_id"])
-        _fail(client, state, job["job_id"], "INTERNAL_ERROR", str(exc))
+        _fail(client, state, job["job_id"], "INTERNAL_ERROR", str(exc), executor)
         return
 
     _write_job_logs(config, executor, job["job_id"])
 
     try:
-        client.complete_job(job["job_id"], state.access_token, response)
+        execution = _execution_report(executor)
+        if execution is None:
+            client.complete_job(job["job_id"], state.access_token, response)
+        else:
+            client.complete_job(job["job_id"], state.access_token, response, execution=execution)
     except ApiError as exc:
         if exc.status == 422:
             # A 422 INVALID_RESULT from /complete is treated as InvalidResponse (FR-027):
             # the runtime's own validator agreed, but the server's disagreed (or the
             # runtime has no jsonschema/subset gap) -- fail it honestly rather than retry.
-            _fail(client, state, job["job_id"], "INVALID_LLM_RESPONSE", exc.message)
+            _fail(client, state, job["job_id"], "INVALID_LLM_RESPONSE", exc.message, executor)
         else:
             raise
 
 
-def _fail(client: CloudClient, state, job_id: str, code: str, message: str) -> None:
+def _fail(client: CloudClient, state, job_id: str, code: str, message: str,
+          executor: Executor = None) -> None:
     # spec FR-005: "<code>: <=200 chars of stderr>" -- never model output. `message`
     # here is always the executor's own exception text (the CLI's stderr, the
     # envelope's own error string, or the validator's diagnostic), never
     # `structured_output`.
     detail = message[:_FAIL_MESSAGE_DETAIL_LIMIT]
-    client.fail_job(job_id, state.access_token, code, f"{code}: {detail}")
+    execution = _execution_report(executor) if executor is not None else None
+    if execution is None:
+        client.fail_job(job_id, state.access_token, code, f"{code}: {detail}")
+    else:
+        client.fail_job(job_id, state.access_token, code, f"{code}: {detail}", execution=execution)
 
 
 def _reauthorize(client: CloudClient, store, config):

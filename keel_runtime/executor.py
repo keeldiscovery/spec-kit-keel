@@ -74,6 +74,39 @@ class InferenceRequest:
     interaction_id: str
     turn_number: int
     request_payload: dict
+    # spec 009-model-routing (keel-cloud `canon/designs/model-routing-design.md` §5/§6): the model
+    # the cloud named for *this host* on *this job* -- `request_payload["model"][<host_key>]`,
+    # read by `poller`, `None` when the job carries no key or no entry for this host. The one
+    # rule: present, it goes to the CLI as that host's model flag; absent, the CLI's own default.
+    # There is no other source of a model anywhere in this runtime (design §6, decision 6).
+    model: "str | None" = None
+
+
+def _first_string_for_keys(value, keys) -> "str | None":
+    """Depth-first, the first non-empty string under any of `keys` (in `keys`' priority order
+    across the whole tree). Used to read the model a CLI *reported* out of its own stream."""
+    for key in keys:
+        found = _find_string_key(value, key)
+        if found:
+            return found
+    return None
+
+
+def _find_string_key(value, key):
+    if isinstance(value, dict):
+        candidate = value.get(key)
+        if isinstance(candidate, str) and candidate.strip():
+            return candidate.strip()
+        for child in value.values():
+            found = _find_string_key(child, key)
+            if found:
+                return found
+    elif isinstance(value, list):
+        for child in value:
+            found = _find_string_key(child, key)
+            if found:
+                return found
+    return None
 
 
 class Executor(ABC):
@@ -169,6 +202,7 @@ def _render_prompt(sections: dict) -> str:
         "",
         "CONTRACT",
         json.dumps(sections["contract"], indent=2),
+        _TWO_RULES_SENTENCES,
         "",
         _SOURCE_MATERIAL_HEADING,
         "",
@@ -355,6 +389,11 @@ _COPILOT_ENV_EXACT = frozenset({"GH_TOKEN", "GITHUB_TOKEN", "GH_HOST"})
 _CREDENTIAL_TWINS = (
     ("KEEL_CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"),
     ("KEEL_COPILOT_GITHUB_TOKEN", "COPILOT_GITHUB_TOKEN"),
+    # Codex (spec 008), measured 2026-09-12: a command Codex runs does not see `CODEX_HOME` even
+    # when the parent set it -- the one variable that says where the credential is, stripped by
+    # exact name like the two above. The runtime is started from inside such a shell, so a cell
+    # (or a founder) whose Codex login lives in an isolated home names it as `KEEL_CODEX_HOME`.
+    ("KEEL_CODEX_HOME", "CODEX_HOME"),
 )
 
 
@@ -374,7 +413,8 @@ def _build_env(prefixes=_CLAUDE_ENV_PREFIXES, extra_exact=_CLAUDE_ENV_EXACT) -> 
         elif any(key.startswith(prefix) for prefix in prefixes):
             env[key] = value
     for twin, real in _CREDENTIAL_TWINS:
-        if not env.get(real) and os.environ.get(twin) and any(real.startswith(p) for p in prefixes):
+        wanted = real in extra_exact or any(real.startswith(p) for p in prefixes)
+        if not env.get(real) and os.environ.get(twin) and wanted:
             env[real] = os.environ[twin]
     return env
 
@@ -783,6 +823,69 @@ def _last_schema_error(events: list) -> str | None:
     return last
 
 
+# ------------------------------------------------------------------ spec 009: the per-job model
+#
+# keel-cloud `canon/designs/model-routing-design.md` §6. Every host executor carries the same
+# five report attributes, reset per job, so `poller` can build the completion's `execution`
+# object without knowing which host it has:
+#   `last_model_requested`  -- the job's `model[<host_key>]`, or None
+#   `last_model_used`       -- the model the CLI reported, else the requested one when it was
+#                              not retried, else None (a retried job ran on a default this
+#                              runtime cannot name unless the CLI says it)
+#   `last_retried_unpinned` -- True when the CLI refused the named model and the job was run
+#                              once more with no model flag
+# The refusal markers are **measured** (2026-09-13, `tests/fixtures/<host>/MANIFEST.json`),
+# never guessed: a marker nobody recorded is not a marker, and a host without one gets no retry.
+
+
+def _init_model_report(executor) -> None:
+    executor.last_model_requested = None
+    executor.last_model_used = None
+    executor.last_retried_unpinned = False
+
+
+def _begin_model_report(executor, request: InferenceRequest):
+    _init_model_report(executor)
+    model = request.model if isinstance(request.model, str) and request.model.strip() else None
+    executor.last_model_requested = model
+    return model
+
+
+# Measured 2026-09-13, Claude Code 2.1.270, `claude -p ... --model not-a-model`: exit 1; the
+# `result` event is `is_error: true`, `subtype: success`, `terminal_reason: api_error`, and its
+# `result` text reads "There's an issue with the selected model (not-a-model). It may not exist
+# or you may not have access to it." (`tests/fixtures/claude/unknown-model.jsonl`); stderr is
+# one line, `[claude-code:unrecognized_model] {...}`.
+CLAUDE_MODEL_REFUSAL_MARKERS = (
+    "issue with the selected model",
+    "claude-code:unrecognized_model",
+)
+
+
+def _claude_refused_model(result_event, completed) -> bool:
+    texts = []
+    if isinstance(result_event, dict) and result_event.get("is_error"):
+        texts.append(result_event.get("result"))
+    texts.append(getattr(completed, "stderr", None))
+    return any(
+        isinstance(text, str) and marker in text.lower()
+        for text in texts
+        for marker in CLAUDE_MODEL_REFUSAL_MARKERS
+    )
+
+
+def _claude_reported_model(events: list) -> "str | None":
+    """The `model` the `system`/`init` event names -- the CLI's own resolution of an alias
+    (`sonnet` comes back as the full model name). Only that event: an `assistant` message on a
+    refused run names `<synthetic>`, which is not a model."""
+    for event in events:
+        if isinstance(event, dict) and event.get("type") == "system" and event.get("subtype") == "init":
+            model = event.get("model")
+            if isinstance(model, str) and model.strip() and model.strip() != "<synthetic>":
+                return model.strip()
+    return None
+
+
 class ClaudeCodeExecutor(Executor):
     """Invokes the `claude` CLI in a closed, tool-less, session-less shape.
 
@@ -815,8 +918,17 @@ class ClaudeCodeExecutor(Executor):
         self.last_events: list | None = None
         self.last_schema_error: str | None = None
         self._resolved_binary: str | None = None  # set by `execute()`; see its docstring note
+        _init_model_report(self)
 
-    def _build_argv(self, envelope_schema: dict) -> list:
+    # spec 009: the key under which a job's `model` map names this host, and the `host` word the
+    # completion report carries. `host_version` is the CLI's own `--version` line, set once by
+    # `cli._run_connect` after the startup probe (`None` when nobody set it).
+    host_key = "claude"
+    host_version: "str | None" = None
+
+    def _build_argv(self, envelope_schema: dict, model: "str | None" = None) -> list:
+        # spec 009: `--model` takes an alias (`sonnet`, `haiku`, `opus`) or a full name, and it
+        # is passed only when the job named one; otherwise the account's configured default.
         return [
             self._resolved_binary,
             "-p",
@@ -837,15 +949,15 @@ class ClaudeCodeExecutor(Executor):
             json.dumps(envelope_schema),
             "--system-prompt",
             SYSTEM_PROMPT,
-        ]
+        ] + (["--model", model] if model else [])
 
-    def _invoke(self, prompt: str, envelope_schema: dict, job_dir: Path):
+    def _invoke(self, prompt: str, envelope_schema: dict, job_dir: Path, model: "str | None" = None):
         """Runs the CLI once, parses its `stream-json` stdout, and returns
         `(events, result_event, completed)`. `result_event` is `None` when the stream
         never carried one (an older CLI without `--json-schema`, or unparseable
         stdout) -- callers fall back on `completed.returncode`/`stderr`, as before.
         """
-        argv = self._build_argv(envelope_schema)
+        argv = self._build_argv(envelope_schema, model)
         completed = _run_with_prompt_on_stdin(
             argv,
             prompt,
@@ -885,8 +997,23 @@ class ClaudeCodeExecutor(Executor):
         job_dir = self.home / "jobs" / request.job_id
         job_dir.mkdir(parents=True, exist_ok=True)
 
-        events, result_event, completed = self._invoke(prompt, envelope_schema, job_dir)
+        model = _begin_model_report(self, request)
+        events, result_event, completed = self._invoke(prompt, envelope_schema, job_dir, model)
         all_events = list(events)
+        if model and _claude_refused_model(result_event, completed):
+            # spec 009 FR-006: the CLI refused the named model (measured: `is_error` with
+            # `terminal_reason: api_error` and the "issue with the selected model" text,
+            # `tests/fixtures/claude/unknown-model.jsonl`). One retry, unpinned, same job; the
+            # refused pass's events stay in the log.
+            self.last_retried_unpinned = True
+            model = None
+            events, result_event, completed = self._invoke(prompt, envelope_schema, job_dir, None)
+            all_events.extend(events)
+        # Read off the *answering* pass only: a refused pass's init event echoes the flag it was
+        # given (`model: "not-a-model"`, measured), which is not a model that ran.
+        self.last_model_used = _claude_reported_model(events) or (
+            self.last_model_requested if not self.last_retried_unpinned else None
+        )
 
         # spec FR-011: one recovery pass, and only when the first invocation ended on
         # `error_max_turns` *and* a schema refusal was actually seen -- an
@@ -897,7 +1024,7 @@ class ClaudeCodeExecutor(Executor):
             if schema_error_so_far:
                 recovery_prompt = prompt + "\n\n" + _recovery_section(schema_error_so_far)
                 events2, result_event2, completed2 = self._invoke(
-                    recovery_prompt, envelope_schema, job_dir
+                    recovery_prompt, envelope_schema, job_dir, model
                 )
                 all_events.extend(events2)
                 completed = completed2
@@ -1059,10 +1186,29 @@ COPILOT_AUTH_MARKERS = (
     "personal access tokens (ghp_) are not supported by copilot",
 )
 
+# keel-e2e-eval DRIFT #67 (Copilot's run of record, 2026-09-12): the two misses on this prompt
+# shape were instruction-following, not reading -- one invented unit ("wake-ups") and the word
+# "proxy" in seven of twenty-one briefs, both of which the instruction text already forbids. The
+# two sentences below repeat those two rules where this host reads them best, in the RESPONSE
+# section. Host-neutral (Codex reads the same prompt), and a prompt change, never a mark change.
+# The two rules every host is reminded of beside its response contract (spec 009, keel-e2e-eval
+# DRIFT #67 for Copilot; Claude's 2026-09-13 run of record missed one brief on "proxy" too):
+# fixed-word fields use the listed word exactly, and a forbidden word is never written.
+_TWO_RULES_SENTENCES = (
+    "Where the task names a fixed set of words for a field, use one of them exactly as spelled "
+    "and never coin another: a measure's unit is a duration in minutes, hours, days, weeks, "
+    "months, years, working-hours, working-days or working-weeks; money in the market's own ISO "
+    "currency code; a share in percent; a physical quantity in the market's own family; a count "
+    "as the plain noun being counted. "
+    "Where the task forbids a word, do not write it in any form; in particular never the word "
+    "\"proxy\" -- say the closest thing they already buy today."
+)
+
 _COPILOT_RESPONSE_SECTION = (
     "RESPONSE\n"
     "Reply with exactly one JSON object matching the schema below, and nothing else: no "
     "prose before it, no explanation after it, no code fence around it.\n"
+    + _TWO_RULES_SENTENCES + "\n"
     "{schema}"
 )
 
@@ -1128,16 +1274,28 @@ def _copilot_final_answer(events: list):
     `final_answer`-phase message carries the whole answer.
     """
     answer = None
+    saw_a_phase = False
+    fallback = None
     for event in events:
         if event.get("type") != "assistant.message":
             continue
         data = event.get("data") or {}
-        if data.get("phase") != "final_answer":
-            continue
         content = data.get("content")
-        if isinstance(content, str) and content.strip():
-            answer = content
-    return answer
+        has_text = isinstance(content, str) and content.strip()
+        if data.get("phase"):
+            saw_a_phase = True
+            if data.get("phase") == "final_answer" and has_text:
+                answer = content
+        elif has_text and not data.get("toolRequests"):
+            fallback = content
+    if answer is not None or saw_a_phase:
+        return answer
+    # keel-e2e-eval DRIFT #59 (2026-09-10), measured on Copilot CLI 1.0.83: an Anthropic-vendored
+    # model (`claude-sonnet-5`, the upgraded plan's default) emits `assistant.message` with a
+    # correct, complete `content` and **no `phase` key at all**, so the rule above threw every
+    # right answer away. When no event in the stream carries a phase, the last assistant message
+    # with text and no tool requests is the answer -- the same message the phase would have named.
+    return fallback
 
 
 def _copilot_turn_count(events: list) -> int:
@@ -1196,6 +1354,34 @@ def _mentions_copilot_auth_failure(text) -> bool:
     return any(marker in lowered for marker in COPILOT_AUTH_MARKERS)
 
 
+# Measured 2026-09-13, GitHub Copilot CLI 1.0.83, `copilot -p "" ... --model not-a-model`: exit
+# 1, **empty stdout** (no session ever starts), one stderr line:
+#   Error: Model "not-a-model" from --model flag is not available.
+# (`tests/fixtures/copilot/unknown-model.stderr`). This is a different sentence from the CAPIError
+# 400 "The requested model is not supported" that an *invalid token* once produced inside a
+# `session.error` (design §5.4) -- that one names no flag, is not matched here, and stays what it
+# is: an unrecognised session error, LLM_UNAVAILABLE.
+COPILOT_MODEL_REFUSAL_MARKERS = (
+    "from --model flag is not available",
+)
+
+
+def _copilot_refused_model(events: list, completed) -> bool:
+    texts = [getattr(completed, "stderr", None)] + _copilot_session_errors(events)
+    return any(
+        isinstance(text, str) and marker in text.lower()
+        for text in texts
+        for marker in COPILOT_MODEL_REFUSAL_MARKERS
+    )
+
+
+def _copilot_reported_model(events: list) -> "str | None":
+    """The model this CLI says it ran: `chosenModel` (the router's word) first, then
+    `resolvedModel`, then any `model` key in the stream -- the same three names the instruction
+    eval reads out of the JSONL."""
+    return _first_string_for_keys(events, ("chosenModel", "resolvedModel", "model"))
+
+
 class CopilotExecutor(Executor):
     """Invokes the `copilot` CLI in the same closed, tool-less, session-less shape.
 
@@ -1224,31 +1410,29 @@ class CopilotExecutor(Executor):
         binary: str = "copilot",
         home: Path | str | None = None,
         timeout_seconds: float = DEFAULT_JOB_TIMEOUT_SECONDS,
-        model: str | None = None,
         max_ai_credits: int = DEFAULT_COPILOT_MAX_AI_CREDITS,
     ):
         self.binary = binary
         self.home = Path(home) if home is not None else DEFAULT_HOME
         self.timeout_seconds = timeout_seconds
         # C-5: `auto` is never used in a *measured* run, and `--model` is the only way to say
-        # so. It is `None` here rather than a hard-coded slug because pinning is a property of
-        # the machine's Copilot catalogue, not of this source file: on the founder's Mac,
-        # 2026-09-09, CLI 1.0.83 rejected **every** slug offered to `--model`
-        # (`gpt-5.1`, `gpt-4.1`, `gpt-5-mini`, `claude-sonnet-4.5`, `claude-haiku-4.5`,
-        # `gpt-5-codex`, and even `mai-code-1.1-flash`, the model its own router had just
-        # chosen) with `Model "..." from --model flag is not available.` -- so a constant here
-        # would have made every run on that machine fail. `KEEL_COPILOT_MODEL` (or
-        # `copilot_model` in `config.json`) supplies it, and the `KEEL_EXECUTOR=` startup line
-        # prints `model=auto` when nothing did, so an unpinned run is never silently measured.
-        self.model = model or None
+        # so. No slug lives in this source file because pinning is a property of the machine's
+        # Copilot catalogue: on the founder's Mac, 2026-09-09, CLI 1.0.83 rejected **every**
+        # slug offered to `--model` with `Model "..." from --model flag is not available.`
+        # Since spec 009 the slug comes with the job (`request.model`, the cloud's per-host
+        # routing) and with nothing else; a job that names none runs the router.
         self.max_ai_credits = max(int(max_ai_credits), COPILOT_MIN_AI_CREDITS)
         self.last_envelope: dict | None = None
         self.last_request_sections: dict | None = None
         self.last_events: list | None = None
         self.last_schema_error: str | None = None
         self._resolved_binary: str | None = None  # set by `execute()`; see `ClaudeCodeExecutor`
+        _init_model_report(self)
 
-    def _build_argv(self, job_dir: Path) -> list:
+    host_key = "copilot"
+    host_version: "str | None" = None
+
+    def _build_argv(self, job_dir: Path, model: "str | None" = None) -> list:
         """The design's argv, one process per job. Every flag here was accepted by 1.0.83.
 
         No `--json-schema`, no `--system-prompt`, no `--max-turns` and no timeout flag exist on
@@ -1286,12 +1470,12 @@ class CopilotExecutor(Executor):
             "-C",
             str(job_dir),
         ]
-        if self.model:
-            argv += ["--model", self.model]
+        if model:
+            argv += ["--model", model]
         return argv
 
-    def _invoke(self, prompt: str, job_dir: Path):
-        argv = self._build_argv(job_dir)
+    def _invoke(self, prompt: str, job_dir: Path, model: "str | None" = None):
+        argv = self._build_argv(job_dir, model)
         completed = _run_with_prompt_on_stdin(
             argv,
             prompt,
@@ -1407,22 +1591,34 @@ class CopilotExecutor(Executor):
         job_dir = self.home / "jobs" / request.job_id
         job_dir.mkdir(parents=True, exist_ok=True)
 
-        events, completed = self._invoke(prompt, job_dir)
+        model = _begin_model_report(self, request)
+        events, completed = self._invoke(prompt, job_dir, model)
         all_events = list(events)
+        if model and _copilot_refused_model(events, completed):
+            # spec 009 FR-006: measured on 1.0.83 as one stderr line and no JSONL at all
+            # (`tests/fixtures/copilot/unknown-model.stderr`), checked *before* `_assert_ran`,
+            # which would otherwise report it as LLM_UNAVAILABLE. One retry, unpinned.
+            self.last_retried_unpinned = True
+            model = None
+            events, completed = self._invoke(prompt, job_dir, None)
+            all_events.extend(events)
         self.last_events = all_events
 
-        self._assert_ran(all_events, completed)
-        self._assert_closed_shape(all_events)
+        self._assert_ran(events, completed)
+        self._assert_closed_shape(events)
+        self.last_model_used = _copilot_reported_model(events) or (
+            self.last_model_requested if not self.last_retried_unpinned else None
+        )
 
         try:
-            answer = self._read_answer(all_events, response_contract)
+            answer = self._read_answer(events, response_contract)
         except InvalidResponse as first_failure:
             # spec 002-words-are-words FR-011, unchanged: one recovery pass, quoting the
             # refusal. On the Claude path the CLI produced that refusal; here the runtime's own
             # validator did, and `last_schema_error` carries it either way.
             self.last_schema_error = str(first_failure)
             recovery_prompt = prompt + "\n\n" + _recovery_section(self.last_schema_error)
-            events2, completed2 = self._invoke(recovery_prompt, job_dir)
+            events2, completed2 = self._invoke(recovery_prompt, job_dir, model)
             all_events.extend(events2)
             self.last_events = all_events
             self._assert_ran(events2, completed2)
@@ -1464,7 +1660,373 @@ class CopilotExecutor(Executor):
         return envelope
 
 
-def _make_claude(home, budget_usd, max_turns, timeout_seconds, copilot_model):
+# ============================================================================ the third host: Codex
+#
+# spec `008-codex-executor`: decision 11's pattern (keel-cloud `canon/designs/keel-skill-design.md`
+# §12), applied. Everything below was **measured 2026-09-12 against codex-cli 0.154.0** on the
+# founder's Mac, signed in with a ChatGPT plan; each recording is in `tests/fixtures/codex/` with
+# `MANIFEST.json` saying how it was produced.
+
+# **The closed shape is a list of feature flags, not a list of tool names.** `codex exec` accepts
+# `--disable <feature>` for every feature `codex features list` names, and these thirteen are the
+# ones that put a tool in front of the model: the shell (both spellings), images, the sleep tool,
+# skill and tool discovery, hooks, plugins, memories, apps, the browser, computer use and image
+# generation. Web search is `-c web_search="disabled"` territory in the config reference and its
+# two feature flags are deprecated-off already. With all of these off, a run **asked to run
+# `ls -a`** answered *"no shell execution tool is available in this session"* and emitted no
+# `command_execution` item, where the identical ask on an open run emitted `/bin/zsh -lc 'ls -a'`
+# (`closed-asked-to-run-a-command.jsonl` / `open-asked-to-run-a-command.jsonl`). That pair is
+# the C-1 argument for this host: the flags are proven to remove the tools, and `_assert_closed_shape`
+# verifies per job that none was nonetheless used.
+CODEX_DISABLED_FEATURES = (
+    "shell_tool",
+    "unified_exec",
+    "view_image",
+    "sleep_tool",
+    "skill_search",
+    "tool_suggest",
+    "hooks",
+    "plugins",
+    "memories",
+    "apps",
+    "browser_use",
+    "computer_use",
+    "image_generation",
+)
+
+# The rest of the argv, every flag accepted by 0.154.0: `exec -` reads the prompt from stdin (the
+# one rule both other executors follow, and for the same Windows reason); `--json` is one event
+# per line; `--ephemeral` writes no session file; `--sandbox read-only` and `-C <job dir>` are
+# belt to the flags' braces; `--ignore-user-config` keeps the founder's own `config.toml` -- their
+# MCP servers, their skills, their hooks -- out of a job while, in the CLI's own words, "auth
+# still uses CODEX_HOME"; `--skip-git-repo-check` because a job directory is not a repository.
+#
+# **No `--output-schema`.** Measured: the flag hands the schema to OpenAI's *strict* structured
+# outputs, which refuse any object whose `required` does not list every property
+# (`output-schema-refused-by-strict-mode.jsonl`: `invalid_json_schema ... Missing 'result'`).
+# Keel's envelope is an either/or -- `result` on COMPLETED, `questions` on NEEDS_INPUT -- so it
+# cannot be written that way. The schema therefore travels in the prompt, exactly as it does for
+# Copilot (C-8), and the runtime's own validator is the enforcement.
+CODEX_EXEC_FLAGS = (
+    "--json",
+    "--ephemeral",
+    "--sandbox", "read-only",
+    "--skip-git-repo-check",
+    "--ignore-user-config",
+    "--color", "never",
+)
+
+CODEX_MAX_PROMPT_BYTES = COPILOT_MAX_PROMPT_BYTES
+
+# C-6, measured with an isolated `CODEX_HOME` holding no credential: **exit 1**, a JSONL stream on
+# stdout of `error` events (five WebSocket reconnects, a fallback to HTTPS, five more) ending in
+# one `turn.failed`, every one carrying the same text -- and ERROR lines on stderr. The marker is
+# the API's own words, case-folded (`unauthenticated-no-credential.jsonl` / `.stderr`).
+CODEX_AUTH_MARKERS = (
+    "401 unauthorized",
+    "missing bearer or basic authentication",
+)
+
+# What an *answer* looks like in the stream, as opposed to a tool. `agent_message` is the answer;
+# `reasoning` is the model thinking out loud (none was emitted with reasoning effort `none`, the
+# plan's default, but it is not a tool either). Anything else -- `command_execution` measured,
+# `mcp_tool_call`, `web_search`, `file_change` by the protocol's names -- is the model doing
+# something, and the closed shape says it must not.
+_CODEX_ANSWER_ITEM_TYPES = frozenset({"agent_message", "reasoning"})
+
+# C-4: the environment allow-list is this executor's own. `CODEX_HOME` is where the credential
+# lives and the only `CODEX_*` that travels: the others a founder's shell carries -- measured
+# `CODEX_THREAD_ID`, `CODEX_SESSION_ID`, `CODEX_SANDBOX`, `CODEX_SANDBOX_NETWORK_DISABLED`,
+# `CODEX_CI` -- are the *parent* session's handles, and a job's own `codex` must not think it is
+# that session or inside that session's sandbox. `OPENAI_*` carries an API-key sign-in.
+_CODEX_ENV_PREFIXES = ("OPENAI_",)
+_CODEX_ENV_EXACT = frozenset({"CODEX_HOME"})
+
+
+def _codex_error_messages(events: list) -> list:
+    """Every `error` and `turn.failed` in the stream, as text. **Any one is a failure whatever
+    the exit code says** (C-3's rule, kept for this host too)."""
+    messages = []
+    for event in events:
+        kind = event.get("type")
+        if kind == "error":
+            text = event.get("message")
+        elif kind == "turn.failed":
+            text = (event.get("error") or {}).get("message")
+        else:
+            continue
+        messages.append(text if isinstance(text, str) and text else json.dumps(event))
+    return messages
+
+
+def _codex_items(events: list) -> list:
+    """Every `item.completed` (and `item.started`, for a tool that never finished) item."""
+    items = []
+    for event in events:
+        if event.get("type") in ("item.started", "item.completed"):
+            item = event.get("item")
+            if isinstance(item, dict):
+                items.append(item)
+    return items
+
+
+def _codex_tool_items(events: list) -> list:
+    """The items that are not an answer: the model used something."""
+    return [item for item in _codex_items(events)
+            if item.get("type") not in _CODEX_ANSWER_ITEM_TYPES]
+
+
+def _codex_final_answer(events: list):
+    """The last completed `agent_message` with text. A run measured emitting two -- a sentence of
+    intent, then the JSON -- so "the last one" is the rule, as it is for Copilot's final_answer."""
+    answer = None
+    for event in events:
+        if event.get("type") != "item.completed":
+            continue
+        item = event.get("item") or {}
+        if item.get("type") != "agent_message":
+            continue
+        text = item.get("text")
+        if isinstance(text, str) and text.strip():
+            answer = text
+    return answer
+
+
+def _codex_turn_count(events: list) -> int:
+    return sum(1 for event in events if event.get("type") == "turn.completed")
+
+
+def _codex_usage(events: list):
+    """`usage` from the last `turn.completed`: tokens, in the host's own unit. **Never turned
+    into dollars** (C-7): a ChatGPT plan has no per-token price to multiply by."""
+    usage = None
+    for event in events:
+        if event.get("type") == "turn.completed" and isinstance(event.get("usage"), dict):
+            usage = event["usage"]
+    return usage
+
+
+def _mentions_codex_auth_failure(text) -> bool:
+    if not isinstance(text, str):
+        return False
+    lowered = text.lower()
+    return any(marker in lowered for marker in CODEX_AUTH_MARKERS)
+
+
+# Measured 2026-09-13, codex-cli 0.154.0 on the founder's ChatGPT plan, `codex exec ... -m
+# gpt-5.5-mini`: exit 1; the stream is `thread.started`, `turn.started`, one `error` and one
+# `turn.failed`, both carrying the API's own 400 text -- "The 'gpt-5.5-mini' model is not
+# supported when using Codex with a ChatGPT account." -- and stderr holds only the stdin notice
+# (`tests/fixtures/codex/unsupported-model-on-plan.{jsonl,stderr}`). An unknown name
+# (`-m not-a-model`) is refused with the same sentence, preceded by an `item.completed` error
+# item "Model metadata for `not-a-model` not found" (`unknown-model.jsonl`). On an **API-key**
+# sign-in the same ask is refused with the API's 404 instead -- "The model `gpt-5.5-mini` does not
+# exist or you do not have access to it." -- repeated through five WebSocket reconnects, the HTTPS
+# fallback and five more before the `turn.failed` (`unsupported-model-on-api-key.jsonl`, measured
+# the same day). Both markers are the sentence's core, case-folded.
+CODEX_MODEL_REFUSAL_MARKERS = (
+    "model is not supported when using codex",
+    "does not exist or you do not have access to it",
+)
+
+
+def _codex_refused_model(events: list, completed) -> bool:
+    texts = [getattr(completed, "stderr", None)] + _codex_error_messages(events)
+    return any(
+        isinstance(text, str) and marker in text.lower()
+        for text in texts
+        for marker in CODEX_MODEL_REFUSAL_MARKERS
+    )
+
+
+class CodexExecutor(Executor):
+    """Invokes the `codex` CLI in the same closed, tool-less, session-less shape.
+
+    Behind the same `Executor` ABC as the other two, returning the same `{outcome,
+    questions?|result?}` dict and raising the same three exceptions, so `poller` cannot tell which
+    host it is talking to. It is `CopilotExecutor`'s design with Codex's flags: the system prompt
+    and the envelope schema travel in the prompt (`_render_copilot_prompt`, C-8 -- see
+    `CODEX_EXEC_FLAGS` for why `--output-schema` is not used), the runtime's own validator
+    enforces the schema, the closed shape is verified per job from the stream, the timeout is
+    ours, and no dollar figure is invented.
+
+    Exposes `last_envelope`, `last_request_sections`, `last_events` and `last_schema_error` after
+    each call, exactly as the other two do.
+    """
+
+    def __init__(
+        self,
+        binary: str = "codex",
+        home: Path | str | None = None,
+        timeout_seconds: float = DEFAULT_JOB_TIMEOUT_SECONDS,
+    ):
+        self.binary = binary
+        self.home = Path(home) if home is not None else DEFAULT_HOME
+        self.timeout_seconds = timeout_seconds
+        # C-5's rule for this host: unpinned, `codex exec` answers with the account's default
+        # (measured `gpt-6-astra` on the founder's plan, printed by the CLI's own plain-mode
+        # header). Since spec 009 the job names the model (`request.model`) and `-m` carries it;
+        # a job that names none runs the default.
+        self.last_envelope: dict | None = None
+        self.last_request_sections: dict | None = None
+        self.last_events: list | None = None
+        self.last_schema_error: str | None = None
+        self._resolved_binary: str | None = None
+        _init_model_report(self)
+
+    host_key = "codex"
+    host_version: "str | None" = None
+
+    def _build_argv(self, job_dir: Path, model: "str | None" = None) -> list:
+        argv = [self._resolved_binary, "exec", "-"]
+        argv += list(CODEX_EXEC_FLAGS)
+        for feature in CODEX_DISABLED_FEATURES:
+            argv += ["--disable", feature]
+        argv += ["-C", str(job_dir)]
+        if model:
+            argv += ["-m", model]
+        return argv
+
+    def _invoke(self, prompt: str, job_dir: Path, model: "str | None" = None):
+        argv = self._build_argv(job_dir, model)
+        completed = _run_with_prompt_on_stdin(
+            argv,
+            prompt,
+            cwd=job_dir,
+            env=_build_env(_CODEX_ENV_PREFIXES, _CODEX_ENV_EXACT),
+            timeout_seconds=self.timeout_seconds,
+            binary=self.binary,
+        )
+        return _parse_stream_events(completed.stdout), completed
+
+    def _assert_ran(self, events: list, completed) -> None:
+        """C-6 then C-3: did this run authenticate, and did the turn fail?"""
+        errors = _codex_error_messages(events)
+        stderr = (completed.stderr or "").strip()
+        for text in [stderr] + errors:
+            if _mentions_codex_auth_failure(text):
+                raise ExecutorAuthFailure(text.splitlines()[0] if text else "not authenticated")
+        if errors:
+            raise ExecutorUnavailable("; ".join(errors))
+        if not events:
+            raise ExecutorUnavailable(
+                stderr or f"'{self.binary}' produced no output (exit {completed.returncode})"
+            )
+
+    def _assert_closed_shape(self, events: list) -> None:
+        """C-1 for this host: the flags are proven to remove the tools (the recorded pair), and
+        this checks per job that the model used none anyway. A tool item in the stream fails the
+        job **before its answer is used**."""
+        used = _codex_tool_items(events)
+        if used:
+            kinds = sorted({str(item.get("type")) for item in used})
+            raise ExecutorUnavailable(
+                "the closed shape was not held: this run emitted "
+                + ", ".join(kinds) + " -- the disabled-feature list is out of date"
+            )
+
+    def _read_answer(self, events: list, response_contract: dict) -> dict:
+        text = _codex_final_answer(events)
+        if text is None:
+            raise InvalidResponse("executor produced no agent_message")
+        try:
+            parsed = json.loads(_strip_json_fence(text))
+        except ValueError as exc:
+            raise InvalidResponse(f"agent_message is not JSON: {exc}") from exc
+        if not isinstance(parsed, dict):
+            raise InvalidResponse("agent_message is not a JSON object")
+        validate_response(parsed, response_contract)
+        return parsed
+
+    def execute(self, request: InferenceRequest) -> dict:
+        self._resolved_binary = shutil.which(self.binary)
+        if self._resolved_binary is None:
+            raise ExecutorUnavailable(f"'{self.binary}' executable not found on PATH")
+
+        self.last_envelope = None
+        self.last_events = None
+        self.last_schema_error = None
+
+        sections = _prompt_sections(request)
+        self.last_request_sections = sections
+
+        response_contract = request.request_payload.get("response_contract") or {}
+        envelope_schema = _build_envelope_schema(response_contract)
+        prompt = _render_copilot_prompt(sections, envelope_schema)
+
+        size = len(prompt.encode("utf-8"))
+        if size > CODEX_MAX_PROMPT_BYTES:
+            raise InvalidResponse(
+                f"prompt is {size} bytes, above the {CODEX_MAX_PROMPT_BYTES}-byte limit this "
+                "executor will send"
+            )
+
+        job_dir = self.home / "jobs" / request.job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+
+        model = _begin_model_report(self, request)
+        events, completed = self._invoke(prompt, job_dir, model)
+        all_events = list(events)
+        if model and _codex_refused_model(events, completed):
+            # spec 009 FR-006: measured on 0.154.0 as an `error` + `turn.failed` pair carrying the
+            # API's 400 (`tests/fixtures/codex/unsupported-model-on-plan.jsonl`), checked before
+            # `_assert_ran`. One retry, unpinned; the refused pass stays in the log.
+            self.last_retried_unpinned = True
+            model = None
+            events, completed = self._invoke(prompt, job_dir, None)
+            all_events.extend(events)
+        self.last_events = all_events
+
+        self._assert_ran(events, completed)
+        self._assert_closed_shape(events)
+        # No model name appears anywhere in this CLI's JSONL (MANIFEST, completed.jsonl), so the
+        # used model is the requested one, and unknown after a retry.
+        self.last_model_used = self.last_model_requested if not self.last_retried_unpinned else None
+
+        try:
+            answer = self._read_answer(events, response_contract)
+        except InvalidResponse as first_failure:
+            self.last_schema_error = str(first_failure)
+            recovery_prompt = prompt + "\n\n" + _recovery_section(self.last_schema_error)
+            events2, completed2 = self._invoke(recovery_prompt, job_dir, model)
+            all_events.extend(events2)
+            self.last_events = all_events
+            self._assert_ran(events2, completed2)
+            self._assert_closed_shape(events2)
+            try:
+                answer = self._read_answer(events2, response_contract)
+            except InvalidResponse as second_failure:
+                self.last_schema_error = str(second_failure)
+                self.last_envelope = self._envelope(all_events, completed2, structured_output=None)
+                raise
+            self.last_envelope = self._envelope(
+                all_events, completed2, structured_output=answer, recovery_pass=True
+            )
+            return answer
+
+        self.last_envelope = self._envelope(all_events, completed, structured_output=answer)
+        return answer
+
+    def _envelope(self, events: list, completed, structured_output, recovery_pass: bool = False) -> dict:
+        """`last_envelope` in the shape `poller` logs for every host, with **`total_cost_usd`
+        absent** (C-7) and the host's own unit, tokens, beside it."""
+        envelope = {
+            "type": "result",
+            "is_error": structured_output is None,
+            "structured_output": structured_output,
+            "num_turns": _codex_turn_count(events),
+            "executor": "codex",
+            "exit_code": completed.returncode,
+        }
+        usage = _codex_usage(events)
+        if usage is not None:
+            envelope["tokens"] = usage
+        if recovery_pass:
+            envelope["recovery_pass"] = True
+        return envelope
+
+
+def _make_claude(home, budget_usd, max_turns, timeout_seconds):
     return ClaudeCodeExecutor(
         home=home,
         budget_usd=budget_usd,
@@ -1473,10 +2035,15 @@ def _make_claude(home, budget_usd, max_turns, timeout_seconds, copilot_model):
     )
 
 
-def _make_copilot(home, budget_usd, max_turns, timeout_seconds, copilot_model):
+def _make_copilot(home, budget_usd, max_turns, timeout_seconds):
     # `budget_usd` and `max_turns` are accepted and dropped on purpose: this CLI has no flag
     # for either, and silently pretending otherwise would be worse than saying so here (C-7).
-    return CopilotExecutor(home=home, timeout_seconds=timeout_seconds, model=copilot_model)
+    return CopilotExecutor(home=home, timeout_seconds=timeout_seconds)
+
+
+def _make_codex(home, budget_usd, max_turns, timeout_seconds):
+    # As for Copilot: no dollar budget and no turn cap exist on this CLI, and the timeout is ours.
+    return CodexExecutor(home=home, timeout_seconds=timeout_seconds)
 
 
 # `claude` and `copilot` are the canonical names (design §5.3). **`claude-code` is a permanent
@@ -1486,6 +2053,7 @@ _EXECUTORS = {
     "claude": _make_claude,
     "claude-code": _make_claude,
     "copilot": _make_copilot,
+    "codex": _make_codex,
 }
 
 # `canonical_executor_name` lives in `config` (one place decides the alias) and is re-exported
@@ -1503,7 +2071,6 @@ def get_executor(
     max_turns: int = DEFAULT_JOB_MAX_TURNS,
     timeout_seconds: float = DEFAULT_JOB_TIMEOUT_SECONDS,
     context_keys_path: str | Path | None = None,
-    copilot_model: str | None = None,
 ) -> Executor:
     if name == "stub":
         # Lazy import: keel_runtime.testing is a test-only dependency of the package,
@@ -1525,4 +2092,4 @@ def get_executor(
     if factory is None:
         known = ", ".join(sorted(list(_EXECUTORS.keys()) + ["stub", "scripted"]))
         raise SystemExit(f"unknown executor '{name}'; known executors: {known}")
-    return factory(home, budget_usd, max_turns, timeout_seconds, copilot_model)
+    return factory(home, budget_usd, max_turns, timeout_seconds)

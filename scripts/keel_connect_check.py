@@ -67,6 +67,7 @@ AGENT_SESSION_ID_PREFIX = "KEEL_AGENT_SESSION_ID="
 
 HOST_CLAUDE = "claude"
 HOST_COPILOT = "copilot"
+HOST_CODEX = "codex"
 HOST_AUTO = "auto"
 
 # Which executor name each detected host asks the runtime for (design §5.3). `claude-code` is a
@@ -74,7 +75,8 @@ HOST_AUTO = "auto"
 # runtime knows, so it is the one sent: an alias promised never to be removed is safe to send, and
 # a canonical name the runtime does not yet accept is not. `copilot` is spec
 # `005-copilot-executor`'s and is sent as written.
-HOST_EXECUTORS = {HOST_CLAUDE: "claude-code", HOST_COPILOT: "copilot"}
+# `codex` is keel-runtime spec `008-codex-executor`'s and is sent as written.
+HOST_EXECUTORS = {HOST_CLAUDE: "claude-code", HOST_COPILOT: "copilot", HOST_CODEX: "codex"}
 
 
 # -------------------------------------------------------------------------------- argument parsing
@@ -98,7 +100,7 @@ def build_parser():
     parser.add_argument(
         "--host",
         dest="host",
-        choices=[HOST_CLAUDE, HOST_COPILOT, HOST_AUTO],
+        choices=[HOST_CLAUDE, HOST_COPILOT, HOST_CODEX, HOST_AUTO],
         default=HOST_AUTO,
         help="which agent host is running this check; 'auto' reads the environment it was "
         "launched into and says nothing when that is silent or contradictory",
@@ -182,6 +184,11 @@ def detect_host(environ=None):
         answers.add(HOST_COPILOT)
     if env.get("CLAUDECODE") == "1":
         answers.add(HOST_CLAUDE)
+    # Codex (keel-runtime spec 008; measured 2026-09-12 against codex-cli 0.154.0): a command
+    # Codex runs sees `CODEX_THREAD_ID` and `CODEX_SESSION_ID` (the same value), and no
+    # `AI_AGENT` of Codex's own. Both leak down the process tree the way Copilot's do.
+    if (env.get("CODEX_THREAD_ID") or "").strip() or (env.get("CODEX_SESSION_ID") or "").strip():
+        answers.add(HOST_CODEX)
 
     ai_agent = (env.get("AI_AGENT") or "").strip()
     if ai_agent.startswith("github_copilot"):
